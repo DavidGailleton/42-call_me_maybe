@@ -1,0 +1,16 @@
+[project]
+name = "call_me_maybe"
+version = "0.1.0"
+description = "Introduction to function calling in LLMs"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = ["numpy>=2.3.5", "pydantic>=2.13.3"]
+
+
+[dependency-groups]
+dev = ["mypy>=1.19.1", "flake8>=7.3.0"]
+
+
+[tool.mypy]
+python_version = "3.13"
+explicit_package_bases = true
