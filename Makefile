@@ -1,26 +1,31 @@
-SRCS= main.py
+PYTHON = uv run python
+MAIN = src/main.py
+
+.PHONY: install run debug clean lint lint-strict test
 
 install:
 	uv sync
 
-run: install
-	uv run python3 -m src
+run:
+	$(PYTHON) $(MAIN)
 
 debug:
-	uv run python3 -m src
+	$(PYTHON) -m pdb $(MAIN)
 
 clean:
-	rm -rf */**/__pycache__ */__pycache__ __pycache__ */.mypy_cache .mypy_cache .venv dist build */**/*.egg-info */*.egg-info *.egg-info test.txt
+	find . -type d -name "__pycache__" -exec rm -rf {} +
+	find . -type d -name ".mypy_cache" -exec rm -rf {} +
+	find . -type d -name ".pytest_cache" -exec rm -rf {} +
+	find . -type d -name ".ruff_cache" -exec rm -rf {} +
+	find . -type f -name "*.pyc" -delete
 
-fclean: clean
-	rm mazegen-1.0.0-py3-none-any.whl 
+lint:
+	uv run flake8 .
+	uv run mypy . --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
 
-lint: install
-	uv run flake8 . --exclude=.venv
-	uv run python3 -m mypy --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
-lint-strict: install
-	uv run flake8 . --exclude=.venv
-	uv run  python3 -m mypy --strict .
+lint-strict:
+	uv run flake8 .
+	uv run mypy . --strict
 
-
-.PHONY: build install run debug clean fclean lint lint-strict run_test
+test:
+	uv run pytest
