@@ -1,4 +1,3 @@
-from sys import argv
 from pydantic import BaseModel, field_validator
 
 
@@ -29,14 +28,14 @@ class Config(BaseModel):
             raise ValueError("invalid input format")
 
 
-def get_output_file() -> str:
+def get_output_file(argv: list[str]) -> str:
     for i in range(len(argv) - 1):
         if argv[i + 1] == "--output" and i < len(argv) - 2:
             return argv[i + 2]
     return "data/output/function_calls.json"
 
 
-def test_args() -> None:
+def test_args(argv: list[str]) -> None:
     i: int = 1
     param_found: dict = {
         "--function_definition": 0,
@@ -71,9 +70,9 @@ def test_args() -> None:
                 raise Exception(f"Unknown argument: {argv[i]}")
 
 
-def get_function_definition() -> (
-    list[dict[str, str | dict[str, str | dict[str, str]]]]
-):
+def get_function_definition(
+    argv: list[str],
+) -> list[dict[str, str | dict[str, str | dict[str, str]]]]:
     import json
 
     file_name: str | None = None
@@ -94,7 +93,7 @@ def get_function_definition() -> (
     return content
 
 
-def get_input() -> list[dict[str, str]]:
+def get_input(argv: list[str]) -> list[dict[str, str]]:
     import json
 
     file_name: str | None = None
@@ -113,10 +112,10 @@ def get_input() -> list[dict[str, str]]:
     return content
 
 
-def parsing() -> Config | None:
+def parsing(argv: list[str]) -> Config | None:
     config = Config(
-        function_definition=get_function_definition(),
-        input=get_input(),
-        output_file=get_output_file(),
+        function_definition=get_function_definition(argv),
+        input=get_input(argv),
+        output_file=get_output_file(argv),
     )
     return config

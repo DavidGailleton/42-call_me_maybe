@@ -1,8 +1,9 @@
 def main() -> None:
     from src import parsing
+    import sys
 
     try:
-        parsing()
+        parsing(sys.argv)
     except Exception as err:
         print(err)
 
