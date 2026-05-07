@@ -7,7 +7,7 @@ install:
 	uv sync
 
 run:
-	$(PYTHON) $(MAIN)
+	$(PYTHON) -m src
 
 debug:
 	$(PYTHON) -m pdb $(MAIN)

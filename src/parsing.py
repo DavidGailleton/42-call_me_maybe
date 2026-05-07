@@ -1,11 +1,32 @@
 from sys import argv
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class Config(BaseModel):
-    function_definition: dict
-    intput: dict
+    function_definition: list[dict[str, str | dict[str, str | dict[str, str]]]]
+    input: list[dict[str, str]]
     output_file: str
+
+    @field_validator("function_definition")
+    def validate_function_def(cls, v: list):
+        try:
+            for fn in v:
+                fn["name"]
+                fn["description"]
+                fn["parameters"]
+                for param in fn["parameters"]:
+                    fn["parameters"][param]["type"]
+                fn["returns"]
+        except KeyError:
+            raise ValueError("invalid function_definition format")
+
+    @field_validator("input")
+    def validate_input(cls, v: list):
+        try:
+            for prompt in v:
+                prompt["prompt"]
+        except KeyError:
+            raise ValueError("invalid input format")
 
 
 def get_output_file() -> str:
@@ -27,7 +48,8 @@ def test_args() -> None:
             case "--function_definition":
                 if param_found["--function_definition"] == 1:
                     raise Exception(
-                        "--function_definition param has multiple definition in args"
+                        "--function_definition param has multiple"
+                        "definition in args"
                     )
                 i += 1
                 param_found["--function_definition"] = 1
@@ -49,7 +71,9 @@ def test_args() -> None:
                 raise Exception(f"Unknown argument: {argv[i]}")
 
 
-def get_function_definition() -> dict:
+def get_function_definition() -> (
+    list[dict[str, str | dict[str, str | dict[str, str]]]]
+):
     import json
 
     file_name: str | None = None
@@ -64,7 +88,35 @@ def get_function_definition() -> dict:
             pass
     if file_name is None:
         file_name = "data/input/functions_definition.json"
+    with open(file_name, "r") as file:
+        content = json.load(file)
+        print(content)
+    return content
 
 
-def parsing() -> str | None:
-    test_args()
+def get_input() -> list[dict[str, str]]:
+    import json
+
+    file_name: str | None = None
+    if "--input" in argv:
+        try:
+            file_name = [
+                argv[i + 1] for i in range(len(argv)) if argv[i] == "--input"
+            ][0]
+        except IndexError:
+            pass
+    if file_name is None:
+        file_name = "data/input/function_calling_tests.json"
+    with open(file_name, "r") as file:
+        content = json.load(file)
+        print(content)
+    return content
+
+
+def parsing() -> Config | None:
+    config = Config(
+        function_definition=get_function_definition(),
+        input=get_input(),
+        output_file=get_output_file(),
+    )
+    return config
