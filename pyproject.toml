@@ -5,16 +5,15 @@ description = "42 Python project template"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "numpy>=2.2.0",
-    "pydantic>=2.13.0",
+  "numpy>=2.2.0",
+  "pydantic>=2.13.0",
+  "torch>=2.0.0",
+  "transformers>=4.40.0",
+  "huggingface-hub>=0.20.0",
 ]
 
 [dependency-groups]
-dev = [
-    "flake8>=7.0.0",
-    "mypy>=1.10.0",
-    "pytest>=8.0.0",
-]
+dev = ["flake8>=7.0.0", "mypy>=1.10.0", "pytest>=8.0.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -29,9 +28,4 @@ disallow_untyped_defs = true
 check_untyped_defs = true
 
 [tool.flake8]
-exclude = [
-    ".venv",
-    "__pycache__",
-    ".mypy_cache",
-    ".pytest_cache",
-]
+exclude = [".venv", "__pycache__", ".mypy_cache", ".pytest_cache"]
