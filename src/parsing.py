@@ -1,31 +1,4 @@
-from pydantic import BaseModel, field_validator
-
-
-class Config(BaseModel):
-    function_definition: list[dict[str, str | dict[str, str | dict[str, str]]]]
-    input: list[dict[str, str]]
-    output_file: str
-
-    @field_validator("function_definition")
-    def validate_function_def(cls, v: list):
-        try:
-            for fn in v:
-                fn["name"]
-                fn["description"]
-                fn["parameters"]
-                for param in fn["parameters"]:
-                    fn["parameters"][param]["type"]
-                fn["returns"]
-        except KeyError:
-            raise ValueError("invalid function_definition format")
-
-    @field_validator("input")
-    def validate_input(cls, v: list):
-        try:
-            for prompt in v:
-                prompt["prompt"]
-        except KeyError:
-            raise ValueError("invalid input format")
+from src.classes.Config import Config
 
 
 def get_output_file(argv: list[str]) -> str:
@@ -89,7 +62,6 @@ def get_function_definition(
         file_name = "data/input/functions_definition.json"
     with open(file_name, "r") as file:
         content = json.load(file)
-        print(content)
     return content
 
 
@@ -108,14 +80,19 @@ def get_input(argv: list[str]) -> list[dict[str, str]]:
         file_name = "data/input/function_calling_tests.json"
     with open(file_name, "r") as file:
         content = json.load(file)
-        print(content)
     return content
 
 
 def parsing(argv: list[str]) -> Config | None:
+    fn_def = get_function_definition(argv)
+    input = get_input(argv)
+    output = get_output_file(argv)
+    print(input)
+
     config = Config(
-        function_definition=get_function_definition(argv),
-        input=get_input(argv),
-        output_file=get_output_file(argv),
+        function_definition=fn_def,
+        input=input,
+        output_file=output,
     )
+    print(config.function_definition)
     return config

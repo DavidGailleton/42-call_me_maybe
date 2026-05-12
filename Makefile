@@ -1,5 +1,4 @@
 PYTHON = uv run python
-MAIN = src/main.py
 
 .PHONY: install run debug clean lint lint-strict test
 
@@ -10,7 +9,7 @@ run:
 	$(PYTHON) -m src
 
 debug:
-	$(PYTHON) -m pdb $(MAIN)
+	$(PYTHON) -m pdb src/__main__.py
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +
