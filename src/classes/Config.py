@@ -7,7 +7,7 @@ class Config(BaseModel):
     output_file: str
 
     @field_validator("function_definition")
-    def validate_function_def(cls, v: list):
+    def validate_function_def(cls, v: list) -> list:
         try:
             for fn in v:
                 fn["name"]
@@ -18,11 +18,13 @@ class Config(BaseModel):
                 fn["returns"]
         except KeyError:
             raise ValueError("invalid function_definition format")
+        return v
 
     @field_validator("input")
-    def validate_input(cls, v: list):
+    def validate_input(cls, v: list) -> list:
         try:
             for prompt in v:
                 prompt["prompt"]
         except KeyError:
             raise ValueError("invalid input format")
+        return v
