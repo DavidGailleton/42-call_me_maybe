@@ -4,7 +4,23 @@ from src.classes.Config import Config
 
 def test(config: Config) -> None:
     model = Small_LLM_Model()
-    query = input()
+    import json
+
+    tools_block = "\n".join(
+        json.dumps(fn) for fn in config.function_definition
+    )
+
+    query = (
+        "<|im_start|>system\n"
+        "You are a function calling assistant.\n"
+        "Choose the single best function for the user request.\n"
+        "Output only the function name.\n"
+        "<|im_end|>\n"
+        "<|im_start|>user\n"
+        "greet 'hello'\n"
+        "<|im_end|>\n"
+        "<|im_start|>assistant\n"
+    )
     for fn in config.function_definition:
         query += f"\n{fn['name']} : \"{fn['description']}\"\n"
     input_ids = model.encode(query)[0].tolist()
