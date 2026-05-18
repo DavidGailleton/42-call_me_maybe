@@ -1,5 +1,6 @@
 import json
 from os import read
+import re
 from typing import Any
 
 from pydantic import config
@@ -119,16 +120,50 @@ class PromptSolver:
             if len(av_answer) == 1:
                 return av_answer[0]
 
-    def get_token_mask_parameters(self, prompt: str) -> list:
-        with open(self.model.get_path_to_vocab_file()) as file:
+    def get_token_mask_parameters(
+        self,
+        query: str,
+        input_ids: list[int],
+        candidate_values: list[str],
+    ) -> list[int]:
+        """
+        Return a vocabulary mask for the next token when generating one parameter value.
+
+        A token is allowed iff appending it keeps the generated continuation compatible
+        with at least one candidate value.
+        """
+        with open(
+            self.model.get_path_to_vocab_file(), "r", encoding="utf-8"
+        ) as file:
             vocab = json.load(file)
-        res = [0] * len(vocab)
-        i = 0
-        for k in vocab:
-            if k in prompt or k == "\n":
-                res[i] = 1
-            i += 1
-        return res
+
+        vocab_size = len(vocab)
+        mask = [0] * vocab_size
+
+        query_ids = self.model.encode(query)[0].tolist()
+        generated_ids = input_ids[len(query_ids) :]
+
+        for value in candidate_values:
+            full_ids = self.model.encode(query + value)[0].tolist()
+
+            # defensive check: make sure query tokenization matches
+            if full_ids[: len(query_ids)] != query_ids:
+                continue
+
+            continuation_ids = full_ids[len(query_ids) :]
+
+            # current generation must be a prefix of this candidate continuation
+            if len(generated_ids) > len(continuation_ids):
+                continue
+            if continuation_ids[: len(generated_ids)] != generated_ids:
+                continue
+
+            # if candidate not complete yet, allow its next token
+            if len(generated_ids) < len(continuation_ids):
+                next_token_id = continuation_ids[len(generated_ids)]
+                mask[next_token_id] = 1
+
+        return mask
 
     def get_fn_parameters(self, fn_name: str, prompt: str) -> dict:
         definition = [
@@ -137,10 +172,9 @@ class PromptSolver:
             if definition["name"] == fn_name
         ][0]
         res: dict[str, Any] = {}
-        print(definition["parameters"])
         for parameter in definition["parameters"]:
             query = (
-                "You must choose exactly one parameters from the prompt.\n"
+                "You must extract exactly one parameters value from the prompt.\n"
                 "Output only the parameters, with no explanation and no extra text.\n\n"
                 f"function definition:\n{definition}\n\n"
                 f"Parameter to return:\n{parameter}\n\n"
@@ -150,10 +184,24 @@ class PromptSolver:
             )
             input_ids = self.model.encode(query)[0].tolist()
             while True:
+                print(definition["parameters"])
+                print(parameter)
+                if definition["parameters"][parameter]["type"] == "number":
+                    candidate_values = re.findall(r"-?\d+(?:\.\d+)?", prompt)
+                elif definition["parameters"][parameter]["type"] == "boolean":
+                    candidate_values = ["true", "false"]
+                else:
+                    candidate_values = re.findall(
+                        r'"([^"]*)"|\'([^\']*)\'', prompt
+                    )
+                print(candidate_values)
+
                 input_ids.append(
                     self.get_next_token_id(
                         self.model.get_logits_from_input_ids(input_ids),
-                        self.get_token_mask_parameters(prompt),
+                        self.get_token_mask_parameters(
+                            query, input_ids, candidate_values
+                        ),
                     )
                 )
                 if self.model.decode(input_ids).endswith("\n"):
@@ -177,7 +225,7 @@ def process_data(config: Config) -> None:
                 "name": solver.get_fn_name(prompt["prompt"]),
             }
         )
-    print(output)
     for o in output:
         o["parameters"] = solver.get_fn_parameters(o["name"], o["prompt"])
+        print(o)
     print(output)
