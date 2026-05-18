@@ -87,12 +87,10 @@ def parsing(argv: list[str]) -> Config | None:
     fn_def = get_function_definition(argv)
     input = get_input(argv)
     output = get_output_file(argv)
-    print(input)
 
     config = Config(
         function_definition=fn_def,
         input=input,
         output_file=output,
     )
-    print(config.function_definition)
     return config
