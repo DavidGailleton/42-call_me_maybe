@@ -1,9 +1,7 @@
 import json
-from os import read
 import re
 from typing import Any
 
-from pydantic import config
 from llm_sdk import Small_LLM_Model
 from src.classes.Config import Config
 
@@ -52,7 +50,8 @@ class PromptSolver:
 
             if len(generated_ids) < len(continuation):
                 next_token_id = continuation[len(generated_ids)]
-                mask[next_token_id] = 1
+                if next_token_id < vocab_size:
+                    mask[next_token_id] = 1
 
         return mask
 
@@ -91,12 +90,19 @@ class PromptSolver:
         return best_token_id
 
     def get_fn_name(self, prompt: str) -> str:
+        fn_def_formated = {
+            fn["name"]: fn["description"]
+            for fn in self.config.function_definition
+        }
         query = (
+            "<|im_start|>system\n"
             f"You must choose exactly one function name from the list below.\n"
-            f"Output only the function name, with no explanation and no extra text.\n\n"
-            f"User request:\n{prompt}\n\nAvailable functions:\n{self.config.function_definition}\n"
+            f"Output only the function name, with no explanation and no extra text.<|im_end|>\n"
+            f"Available functions:\n{fn_def_formated}\n"
+            "<|im_start|>user\n"
+            f"{prompt}<|im_end|>\n"
+            "<|im_start|>assistant\n"
         )
-        query += "\nAnswer="
         fn_name: list[str] = [
             fn["name"] for fn in self.config.function_definition
         ]
@@ -108,6 +114,7 @@ class PromptSolver:
                     self.get_token_mask_fn_name(input_ids, query, fn_name),
                 )
             )
+            print(self.model.decode(input_ids).removeprefix(query))
             av_answer: list = [
                 name
                 for name in fn_name
@@ -117,6 +124,7 @@ class PromptSolver:
                 or self.model.decode(input_ids).removeprefix(query).strip()
                 == ""
             ]
+            print(av_answer)
             if len(av_answer) == 1:
                 return av_answer[0]
 
@@ -173,17 +181,21 @@ class PromptSolver:
         res: dict[str, Any] = {}
         for parameter in definition["parameters"]:
             query = (
-                "You must extract exactly one parameters value from the prompt.\n"
+                "<|im_start|>system\n"
+                "You must extract exactly one parameters value from the prompt.\n\n"
                 "Output only the parameters, with no explanation and no extra text.\n\n"
                 f"function definition:\n{definition}\n\n"
                 f"Parameter to return:\n{parameter}\n\n"
-                f"Actual answer parameters: {res}\n\n"
-                f"Base prompt: {prompt}\n\n"
-                "Answer="
+                f"Actual answer parameters: {res}<|im_end|>\n"
+                "<|im_start|>user\n"
+                f"{prompt}<|im_end|>\n"
+                "<|im_start|>assistant\n"
+                "The answer is : "
             )
             input_ids = self.model.encode(query)[0].tolist()
             try:
                 while True:
+                    candidate_values = []
                     if definition["parameters"][parameter]["type"] == "number":
                         candidate_values = re.findall(
                             r"-?\d+(?:\.\d+)?", prompt
@@ -193,8 +205,8 @@ class PromptSolver:
                         == "boolean"
                     ):
                         candidate_values = ["true", "false"]
-                    else:
-                        candidate_values = None
+
+                    candidate_values.append("<|im_end|>")
 
                     input_ids.append(
                         self.get_next_token_id(
@@ -204,15 +216,15 @@ class PromptSolver:
                             ),
                         )
                     )
+                    if self.model.decode(input_ids).endswith("<|im_end|>"):
+                        res[parameter] = (
+                            self.model.decode(input_ids)
+                            .removeprefix(query)
+                            .removesuffix("<|im_end|>")
+                        )
                     if (
                         definition["parameters"][parameter]["type"]
                         == "boolean"
-                    ):
-                        raise ValueError
-                    if definition["parameters"][parameter][
-                        "type"
-                    ] == "string" and self.model.decode(input_ids).endswith(
-                        "\n"
                     ):
                         raise ValueError
             except ValueError:
