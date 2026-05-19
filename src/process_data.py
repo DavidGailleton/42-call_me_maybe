@@ -124,7 +124,7 @@ class PromptSolver:
         self,
         query: str,
         input_ids: list[int],
-        candidate_values: list[str],
+        candidate_values: list[str] | None,
     ) -> list[int]:
         """
         Return a vocabulary mask for the next token when generating one parameter value.
@@ -138,6 +138,8 @@ class PromptSolver:
             vocab = json.load(file)
 
         vocab_size = len(vocab)
+        if candidate_values is None:
+            return [1] * vocab_size
         mask = [0] * vocab_size
 
         query_ids = self.model.encode(query)[0].tolist()
@@ -146,19 +148,16 @@ class PromptSolver:
         for value in candidate_values:
             full_ids = self.model.encode(query + value)[0].tolist()
 
-            # defensive check: make sure query tokenization matches
             if full_ids[: len(query_ids)] != query_ids:
                 continue
 
             continuation_ids = full_ids[len(query_ids) :]
 
-            # current generation must be a prefix of this candidate continuation
             if len(generated_ids) > len(continuation_ids):
                 continue
             if continuation_ids[: len(generated_ids)] != generated_ids:
                 continue
 
-            # if candidate not complete yet, allow its next token
             if len(generated_ids) < len(continuation_ids):
                 next_token_id = continuation_ids[len(generated_ids)]
                 mask[next_token_id] = 1
@@ -183,35 +182,52 @@ class PromptSolver:
                 "Answer="
             )
             input_ids = self.model.encode(query)[0].tolist()
-            while True:
-                print(definition["parameters"])
-                print(parameter)
-                if definition["parameters"][parameter]["type"] == "number":
-                    candidate_values = re.findall(r"-?\d+(?:\.\d+)?", prompt)
-                elif definition["parameters"][parameter]["type"] == "boolean":
-                    candidate_values = ["true", "false"]
-                else:
-                    candidate_values = re.findall(
-                        r'"([^"]*)"|\'([^\']*)\'', prompt
-                    )
-                print(candidate_values)
+            try:
+                while True:
+                    if definition["parameters"][parameter]["type"] == "number":
+                        candidate_values = re.findall(
+                            r"-?\d+(?:\.\d+)?", prompt
+                        )
+                    elif (
+                        definition["parameters"][parameter]["type"]
+                        == "boolean"
+                    ):
+                        candidate_values = ["true", "false"]
+                    else:
+                        candidate_values = None
 
-                input_ids.append(
-                    self.get_next_token_id(
-                        self.model.get_logits_from_input_ids(input_ids),
-                        self.get_token_mask_parameters(
-                            query, input_ids, candidate_values
-                        ),
+                    input_ids.append(
+                        self.get_next_token_id(
+                            self.model.get_logits_from_input_ids(input_ids),
+                            self.get_token_mask_parameters(
+                                query, input_ids, candidate_values
+                            ),
+                        )
                     )
-                )
-                if self.model.decode(input_ids).endswith("\n"):
-                    res[parameter] = (
+                    if (
+                        definition["parameters"][parameter]["type"]
+                        == "boolean"
+                    ):
+                        raise ValueError
+                    if definition["parameters"][parameter][
+                        "type"
+                    ] == "string" and self.model.decode(input_ids).endswith(
+                        "\n"
+                    ):
+                        raise ValueError
+            except ValueError:
+                if definition["parameters"][parameter]["type"] == "number":
+                    res[parameter] = float(
                         self.model.decode(input_ids)
-                        .strip()
                         .removeprefix(query)
-                        .removesuffix("\n")
+                        .strip()
                     )
-                    break
+                else:
+                    res[parameter] = float(
+                        self.model.decode(input_ids)
+                        .removeprefix(query)
+                        .strip()
+                    )
         return res
 
 
