@@ -10,29 +10,25 @@ class PromptSolver:
     def __init__(self, config: Config) -> None:
         self.config = config
         self.model = Small_LLM_Model()
+        with open(self.model.get_path_to_vocab_file()) as file:
+            self.vocab = json.load(file)
+        self.vocab_size = len(self.vocab)
 
     class FunctionNotFound(Exception):
         pass
 
     def get_token_mask_fn_name(
         self,
-        input_ids: list[int],
         query: str,
+        output_ids: list[int],
         fn_names: list[str],
     ) -> list[int]:
         """
         Return a mask over the vocabulary for the next valid token.
-        input_ids contains the whole prompt + generated continuation.
+        output_ids contains only the generated continuation.
         """
         query_ids = self.model.encode(query)[0].tolist()
-        generated_ids = input_ids[len(query_ids) :]
-
-        with open(
-            self.model.get_path_to_vocab_file(), "r", encoding="utf-8"
-        ) as f:
-            vocab = json.load(f)
-
-        vocab_size = len(vocab)
+        vocab_size = self.vocab_size
         mask = [0] * vocab_size
 
         for name in fn_names:
@@ -43,14 +39,14 @@ class PromptSolver:
 
             continuation = full_ids[len(query_ids) :]
 
-            if len(generated_ids) > len(continuation):
+            if len(output_ids) > len(continuation):
                 continue
-            if continuation[: len(generated_ids)] != generated_ids:
+            if continuation[: len(output_ids)] != output_ids:
                 continue
 
-            if len(generated_ids) < len(continuation):
-                next_token_id = continuation[len(generated_ids)]
-                if next_token_id < vocab_size:
+            if len(output_ids) < len(continuation):
+                next_token_id = continuation[len(output_ids)]
+                if 0 <= next_token_id < vocab_size:
                     mask[next_token_id] = 1
 
         return mask
@@ -60,21 +56,15 @@ class PromptSolver:
     ) -> int:
         """
         Return the highest-scoring allowed token id.
-
-        Args:
-            logits: Scores for each token in the vocabulary.
-            token_mask: 1 for allowed tokens, 0 for forbidden tokens.
-
-        Returns:
-            The selected token id.
-
-        Raises:
-            ValueError: If sizes differ or no token is allowed.
         """
         if token_mask is None:
             token_mask = [1] * len(logits)
+
         if len(logits) > len(token_mask):
-            logits = logits[0 : len(token_mask)]
+            logits = logits[: len(token_mask)]
+
+        if len(logits) != len(token_mask):
+            raise ValueError("logits and token_mask must have the same size")
 
         best_token_id: int | None = None
         best_score = float("-inf")
@@ -96,37 +86,47 @@ class PromptSolver:
         }
         query = (
             "<|im_start|>system\n"
-            f"You must choose exactly one function name from the list below.\n"
-            f"Output only the function name, with no explanation and no extra text.<|im_end|>\n"
+            "You must choose exactly one function name from the list below.\n"
+            "Output only the function name, with no explanation and no extra text.<|im_end|>\n"
             f"Available functions:\n{fn_def_formated}\n"
             "<|im_start|>user\n"
             f"{prompt}<|im_end|>\n"
             "<|im_start|>assistant\n"
         )
-        fn_name: list[str] = [
+
+        fn_names: list[str] = [
             fn["name"] for fn in self.config.function_definition
         ]
+
         input_ids = self.model.encode(query)[0].tolist()
+        output_ids: list[int] = []
+
+        query_ids = self.model.encode(query)[0].tolist()
+
         while True:
-            input_ids.append(
-                self.get_next_token_id(
-                    self.model.get_logits_from_input_ids(input_ids),
-                    self.get_token_mask_fn_name(input_ids, query, fn_name),
-                )
+            full_ids = input_ids + output_ids
+            logits = self.model.get_logits_from_input_ids(full_ids)
+            token_mask = self.get_token_mask_fn_name(
+                query, output_ids, fn_names
             )
-            print(self.model.decode(input_ids).removeprefix(query))
-            av_answer: list = [
-                name
-                for name in fn_name
-                if name.startswith(
-                    self.model.decode(input_ids).removeprefix(query).strip()
-                )
-                or self.model.decode(input_ids).removeprefix(query).strip()
-                == ""
-            ]
-            print(av_answer)
+
+            next_token_id = self.get_next_token_id(logits, token_mask)
+            output_ids.append(next_token_id)
+
+            av_answer: list[str] = []
+            for name in fn_names:
+                full_name_ids = self.model.encode(query + name)[0].tolist()
+                continuation = full_name_ids[len(query_ids) :]
+                if continuation[: len(output_ids)] == output_ids:
+                    av_answer.append(name)
+
             if len(av_answer) == 1:
-                return av_answer[0]
+                full_name_ids = self.model.encode(query + av_answer[0])[
+                    0
+                ].tolist()
+                continuation = full_name_ids[len(query_ids) :]
+                if continuation == output_ids:
+                    return av_answer[0]
 
     def get_token_mask_parameters(
         self,
@@ -140,12 +140,8 @@ class PromptSolver:
         A token is allowed iff appending it keeps the generated continuation compatible
         with at least one candidate value.
         """
-        with open(
-            self.model.get_path_to_vocab_file(), "r", encoding="utf-8"
-        ) as file:
-            vocab = json.load(file)
 
-        vocab_size = len(vocab)
+        vocab_size = len(self.vocab)
         if candidate_values is None:
             return [1] * vocab_size
         mask = [0] * vocab_size
@@ -190,7 +186,6 @@ class PromptSolver:
                 "<|im_start|>user\n"
                 f"{prompt}<|im_end|>\n"
                 "<|im_start|>assistant\n"
-                "The answer is : "
             )
             input_ids = self.model.encode(query)[0].tolist()
             try:
