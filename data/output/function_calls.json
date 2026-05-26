@@ -3,16 +3,16 @@
         "prompt": "What is the sum of 2 and 3?",
         "name": "fn_add_numbers",
         "parameters": {
-            "a": 3.0,
-            "b": 3.0
+            "a": 2.0,
+            "b": 2.0
         }
     },
     {
         "prompt": "What is the sum of 265 and 345?",
         "name": "fn_add_numbers",
         "parameters": {
-            "a": 345.0,
-            "b": 345.0
+            "a": 265.0,
+            "b": 265.0
         }
     },
     {
@@ -33,14 +33,14 @@
         "prompt": "Reverse the string 'hello'",
         "name": "fn_reverse_string",
         "parameters": {
-            "s": "hello"
+            "s": "reverse"
         }
     },
     {
         "prompt": "Reverse the string 'world'",
         "name": "fn_reverse_string",
         "parameters": {
-            "s": "world"
+            "s": "reverse"
         }
     },
     {
@@ -61,27 +61,27 @@
         "prompt": "Replace all numbers in \"Hello 34 I'm 233 years old\" with NUMBERS",
         "name": "fn_substitute_string_with_regex",
         "parameters": {
-            "source_string": "Hello 34 I'm 233 years old",
-            "regex": "Hello 34 I'm 233 years old",
-            "replacement": "Hello 34 I'm 233 years old"
+            "source_string": "replace",
+            "regex": "all",
+            "replacement": "numbers"
         }
     },
     {
         "prompt": "Replace all vowels in 'Programming is fun' with asterisks",
         "name": "fn_substitute_string_with_regex",
         "parameters": {
-            "source_string": "Programming is fun",
-            "regex": "Programming is fun",
-            "replacement": "Programming is fun"
+            "source_string": "replace",
+            "regex": "vowels",
+            "replacement": "asterisks"
         }
     },
     {
         "prompt": "Substitute the word 'cat' with 'dog' in 'The cat sat on the mat with another cat'",
         "name": "fn_substitute_string_with_regex",
         "parameters": {
-            "source_string": "The cat sat on the mat with another cat",
-            "regex": "The cat sat on the mat with another cat",
-            "replacement": "The cat sat on the mat with another cat"
+            "source_string": "the",
+            "regex": "cat",
+            "replacement": "cat"
         }
     }
 ]
