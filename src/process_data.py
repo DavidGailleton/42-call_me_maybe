@@ -131,23 +131,12 @@ class PromptSolver:
     def get_token_mask_parameters(
         self,
         query: str,
-        input_ids: list[int],
-        candidate_values: list[str] | None,
+        output_ids: list[int],
+        candidate_values: list[str],
     ) -> list[int]:
-        """
-        Return a vocabulary mask for the next token when generating one parameter value.
-
-        A token is allowed iff appending it keeps the generated continuation compatible
-        with at least one candidate value.
-        """
-
-        vocab_size = len(self.vocab)
-        if candidate_values is None:
-            return [1] * vocab_size
+        vocab_size = self.vocab_size
         mask = [0] * vocab_size
-
         query_ids = self.model.encode(query)[0].tolist()
-        generated_ids = input_ids[len(query_ids) :]
 
         for value in candidate_values:
             full_ids = self.model.encode(query + value)[0].tolist()
@@ -157,83 +146,128 @@ class PromptSolver:
 
             continuation_ids = full_ids[len(query_ids) :]
 
-            if len(generated_ids) > len(continuation_ids):
+            if len(output_ids) > len(continuation_ids):
                 continue
-            if continuation_ids[: len(generated_ids)] != generated_ids:
+            if continuation_ids[: len(output_ids)] != output_ids:
                 continue
 
-            if len(generated_ids) < len(continuation_ids):
-                next_token_id = continuation_ids[len(generated_ids)]
-                mask[next_token_id] = 1
+            if len(output_ids) < len(continuation_ids):
+                next_token_id = continuation_ids[len(output_ids)]
+                if 0 <= next_token_id < vocab_size:
+                    mask[next_token_id] = 1
 
         return mask
 
-    def get_fn_parameters(self, fn_name: str, prompt: str) -> dict:
+    def get_fn_parameters(self, fn_name: str, prompt: str) -> dict[str, Any]:
         definition = [
             definition
             for definition in self.config.function_definition
             if definition["name"] == fn_name
         ][0]
+
         res: dict[str, Any] = {}
-        for parameter in definition["parameters"]:
+
+        for parameter, parameter_definition in definition[
+            "parameters"
+        ].items():
+            param_type = parameter_definition["type"]
+
             query = (
-                "<|im_start|>system\n"
-                "You must extract exactly one parameters value from the prompt.\n\n"
-                "Output only the parameters, with no explanation and no extra text.\n\n"
+                "system\n"
+                "You must extract exactly one parameter value from the prompt.\n\n"
+                "Output only the parameter value, with no explanation and no extra text.\n\n"
                 f"function definition:\n{definition}\n\n"
                 f"Parameter to return:\n{parameter}\n\n"
-                f"Already selected parameters: {res}<|im_end|>\n"
-                "<|im_start|>user\n"
-                f"{prompt}<|im_end|>\n"
-                "<|im_start|>assistant\n"
+                f"Already selected parameters: {res}\n"
+                "user\n"
+                f"{prompt}\n"
+                "assistant\n"
             )
-            input_ids = self.model.encode(query)[0].tolist()
-            try:
-                while True:
-                    if definition["parameters"][parameter]["type"] == "number":
-                        candidate_values = re.findall(
-                            r"-?\d+(?:\.\d+)?", prompt
-                        )
-                    elif (
-                        definition["parameters"][parameter]["type"]
-                        == "boolean"
-                    ):
-                        candidate_values = ["true", "false"]
-                    else:
-                        candidate_values = prompt.split()
 
-                    input_ids.append(
-                        self.get_next_token_id(
-                            self.model.get_logits_from_input_ids(input_ids),
-                            self.get_token_mask_parameters(
-                                query, input_ids, candidate_values
-                            ),
-                        )
+            if param_type == "number":
+                candidate_values = re.findall(r"-?\d+(?:\.\d+)?", prompt)
+
+            elif param_type == "boolean":
+                lowered = prompt.lower()
+                candidate_values = []
+                if "true" in lowered or "yes" in lowered:
+                    candidate_values.append("true")
+                if "false" in lowered or "no" in lowered:
+                    candidate_values.append("false")
+                if not candidate_values:
+                    candidate_values = ["true", "false"]
+
+            elif param_type == "string":
+                quoted = re.findall(r'"([^"]*)"|\'([^\']*)\'', prompt)
+                strings = []
+
+                for a, b in quoted:
+                    value = a or b
+                    if value:
+                        strings.append(value)
+
+                if not strings:
+                    strings = re.findall(r"[A-Za-z0-9_\-]+", prompt)
+
+                candidate_values = strings
+
+            else:
+                raise ValueError(f"Unsupported parameter type: {param_type}")
+
+            if not candidate_values:
+                raise ValueError(
+                    f"No candidate found for parameter '{parameter}'"
+                )
+
+            query_ids = self.model.encode(query)[0].tolist()
+            output_ids: list[int] = []
+
+            while True:
+                logits = self.model.get_logits_from_input_ids(
+                    query_ids + output_ids
+                )
+
+                token_mask = self.get_token_mask_parameters(
+                    query,
+                    output_ids,
+                    candidate_values,
+                )
+
+                next_token_id = self.get_next_token_id(logits, token_mask)
+                output_ids.append(next_token_id)
+
+                matching_candidates: list[str] = []
+                full_matches: list[str] = []
+
+                for candidate in candidate_values:
+                    full_candidate_ids = self.model.encode(query + candidate)[
+                        0
+                    ].tolist()
+                    continuation = full_candidate_ids[len(query_ids) :]
+
+                    if continuation[: len(output_ids)] == output_ids:
+                        matching_candidates.append(candidate)
+
+                        if continuation == output_ids:
+                            full_matches.append(candidate)
+
+                if not matching_candidates:
+                    raise ValueError(
+                        f"No valid continuation for parameter '{parameter}'"
                     )
-                    if self.model.decode(input_ids).endswith("<|im_end|>"):
-                        res[parameter] = (
-                            self.model.decode(input_ids)
-                            .removeprefix(query)
-                            .removesuffix("<|im_end|>")
-                        )
-                    if (
-                        definition["parameters"][parameter]["type"]
-                        == "boolean"
-                    ):
-                        raise ValueError
-            except ValueError:
-                if definition["parameters"][parameter]["type"] == "number":
-                    res[parameter] = float(
-                        self.model.decode(input_ids)
-                        .removeprefix(query)
-                        .strip()
-                    )
-                else:
-                    res[parameter] = float(
-                        self.model.decode(input_ids)
-                        .removeprefix(query)
-                        .strip()
-                    )
+
+                if len(full_matches) == 1:
+                    chosen_value = full_matches[0]
+
+                    if param_type == "number":
+                        res[parameter] = float(chosen_value)
+                    elif param_type == "boolean":
+                        res[parameter] = chosen_value == "true"
+                    else:
+                        res[parameter] = chosen_value
+
+                    break
+
         return res
 
 
@@ -252,6 +286,7 @@ def process_data(config: Config) -> None:
                 output[i]["name"], output[i]["prompt"]
             )
         except Exception as err:
-            print(err)
+            print(f"{err}\n\n")
     print()
-    print(json.loads(json.dumps(output)))
+    with open(config.output_file, "w", encoding="utf-8") as o_file:
+        json.dump(output, o_file, indent=4, ensure_ascii=False)
