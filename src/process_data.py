@@ -17,6 +17,34 @@ class PromptSolver:
     class FunctionNotFound(Exception):
         pass
 
+    def get_next_token_id(
+        self, logits: list[float], token_mask: list[int] | None = None
+    ) -> int:
+        """
+        Return the highest-scoring allowed token id.
+        """
+        if token_mask is None:
+            token_mask = [1] * len(logits)
+
+        if len(logits) > len(token_mask):
+            logits = logits[: len(token_mask)]
+
+        if len(logits) != len(token_mask):
+            raise ValueError("logits and token_mask must have the same size")
+
+        best_token_id: int | None = None
+        best_score = float("-inf")
+
+        for token_id, score in enumerate(logits):
+            if token_mask[token_id] == 1 and score > best_score:
+                best_score = score
+                best_token_id = token_id
+
+        if best_token_id is None:
+            raise ValueError("No valid token available in token_mask")
+
+        return best_token_id
+
     def get_token_mask_fn_name(
         self,
         query: str,
@@ -50,34 +78,6 @@ class PromptSolver:
                     mask[next_token_id] = 1
 
         return mask
-
-    def get_next_token_id(
-        self, logits: list[float], token_mask: list[int] | None = None
-    ) -> int:
-        """
-        Return the highest-scoring allowed token id.
-        """
-        if token_mask is None:
-            token_mask = [1] * len(logits)
-
-        if len(logits) > len(token_mask):
-            logits = logits[: len(token_mask)]
-
-        if len(logits) != len(token_mask):
-            raise ValueError("logits and token_mask must have the same size")
-
-        best_token_id: int | None = None
-        best_score = float("-inf")
-
-        for token_id, score in enumerate(logits):
-            if token_mask[token_id] == 1 and score > best_score:
-                best_score = score
-                best_token_id = token_id
-
-        if best_token_id is None:
-            raise ValueError("No valid token available in token_mask")
-
-        return best_token_id
 
     def get_fn_name(self, prompt: str) -> str:
         fn_def_formated = {
@@ -182,7 +182,7 @@ class PromptSolver:
                 "Output only the parameters, with no explanation and no extra text.\n\n"
                 f"function definition:\n{definition}\n\n"
                 f"Parameter to return:\n{parameter}\n\n"
-                f"Actual answer parameters: {res}<|im_end|>\n"
+                f"Already selected parameters: {res}<|im_end|>\n"
                 "<|im_start|>user\n"
                 f"{prompt}<|im_end|>\n"
                 "<|im_start|>assistant\n"
@@ -190,7 +190,6 @@ class PromptSolver:
             input_ids = self.model.encode(query)[0].tolist()
             try:
                 while True:
-                    candidate_values = []
                     if definition["parameters"][parameter]["type"] == "number":
                         candidate_values = re.findall(
                             r"-?\d+(?:\.\d+)?", prompt
@@ -200,8 +199,8 @@ class PromptSolver:
                         == "boolean"
                     ):
                         candidate_values = ["true", "false"]
-
-                    candidate_values.append("<|im_end|>")
+                    else:
+                        candidate_values = prompt.split()
 
                     input_ids.append(
                         self.get_next_token_id(
@@ -241,14 +240,18 @@ class PromptSolver:
 def process_data(config: Config) -> None:
     solver = PromptSolver(config)
     output: list[dict[str, str | dict[str, Any]]] = []
-    for prompt in config.input:
-        output.append(
-            {
-                "prompt": prompt["prompt"],
-                "name": solver.get_fn_name(prompt["prompt"]),
-            }
-        )
-    for o in output:
-        o["parameters"] = solver.get_fn_parameters(o["name"], o["prompt"])
-        print(o)
-    print(output)
+    for i, prompt in enumerate(config.input):
+        try:
+            output.append(
+                {
+                    "prompt": prompt["prompt"],
+                    "name": solver.get_fn_name(prompt["prompt"]),
+                }
+            )
+            output[i]["parameters"] = solver.get_fn_parameters(
+                output[i]["name"], output[i]["prompt"]
+            )
+        except Exception as err:
+            print(err)
+    print()
+    print(json.loads(json.dumps(output)))
