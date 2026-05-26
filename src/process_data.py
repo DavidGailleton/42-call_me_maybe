@@ -7,9 +7,9 @@ from src.classes.Config import Config
 
 
 class PromptSolver:
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, llm: str) -> None:
         self.config = config
-        self.model = Small_LLM_Model()
+        self.model = Small_LLM_Model(model_name=llm)
         with open(self.model.get_path_to_vocab_file()) as file:
             self.vocab = json.load(file)
         self.vocab_size = len(self.vocab)
@@ -171,14 +171,24 @@ class PromptSolver:
             "parameters"
         ].items():
             param_type = parameter_definition["type"]
-
             query = (
                 "system\n"
-                "You must extract exactly one parameter value from the prompt.\n\n"
-                "Output only the parameter value, with no explanation and no extra text.\n\n"
-                f"function definition:\n{definition}\n\n"
-                f"Parameter to return:\n{parameter}\n\n"
-                f"Already selected parameters: {res}\n"
+                "You are extracting one function argument from a user request.\n"
+                "Choose the value for exactly one parameter.\n\n"
+                "Rules:\n"
+                "- Different parameters have different roles.\n"
+                "- Use the function description, parameter name, and parameter type to identify the correct value.\n"
+                "- If several values appear in the prompt, choose the one that best matches the requested parameter.\n"
+                "- Prefer exact text spans from the user prompt when possible.\n"
+                "- Avoid reusing already selected parameters unless it is clearly correct.\n"
+                "- Return only the raw parameter value.\n"
+                "- No explanation.\n"
+                "- No JSON.\n"
+                "- No function name.\n\n"
+                f"Function definition:\n{definition}\n\n"
+                f"Requested parameter name:\n{parameter}\n"
+                f"Requested parameter type:\n{definition['parameters'][parameter]['type']}\n\n"
+                f"Do not use this args :\n{[r for r in res.values()]}\n"
                 "user\n"
                 f"{prompt}\n"
                 "assistant\n"
@@ -271,8 +281,8 @@ class PromptSolver:
         return res
 
 
-def process_data(config: Config) -> None:
-    solver = PromptSolver(config)
+def process_data(config: Config, llm: str = "Qwen/Qwen3-0.6B") -> None:
+    solver = PromptSolver(config, llm)
     output: list[dict[str, str | dict[str, Any]]] = []
     for i, prompt in enumerate(config.input):
         try:

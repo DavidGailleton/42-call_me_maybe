@@ -8,36 +8,36 @@ def get_output_file(argv: list[str]) -> str:
     return "data/output/function_calls.json"
 
 
-def test_args(argv: list[str]) -> None:
+def test_args(args: list[str]) -> None:
     i: int = 1
     param_found: dict = {
         "--function_definition": 0,
         "--input": 0,
         "--output": 0,
     }
-    while i < len(argv):
-        match argv[i]:
+    while i < len(args):
+        match args[i]:
             case "--function_definition":
                 if param_found["--function_definition"] == 1:
                     raise Exception(
                         "--function_definition param has multiple"
                         "definition in args"
                     )
-                i += 1
+                i += 2
                 param_found["--function_definition"] = 1
             case "--input":
                 if param_found["--input"] == 1:
                     raise Exception(
                         "--input param has multiple definition in args"
                     )
-                i += 1
+                i += 2
                 param_found["--input"] = 1
             case "--output":
                 if param_found["--output"] == 1:
                     raise Exception(
                         "--output param has multiple definition in args"
                     )
-                i += 1
+                i += 2
                 param_found["--output"] = 1
             case _:
                 raise Exception(f"Unknown argument: {argv[i]}")
