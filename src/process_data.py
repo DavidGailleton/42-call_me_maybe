@@ -207,7 +207,9 @@ class PromptSolver:
 
             os.system("cls" if os.name == "nt" else "clear")
             decoded = self.model.decode(output_ids)
-            print(decoded)
+            print(f"""Prompt: {prompt}
+
+Output: {decoded}""")
             if self.is_valid_json(output_ids):
                 return json.loads(
                     self.escape_invalid_json_backslashes(
