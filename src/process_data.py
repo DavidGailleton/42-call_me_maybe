@@ -1,4 +1,5 @@
 import json
+from os import wait
 import re
 from typing import Any
 
@@ -130,6 +131,24 @@ class PromptSolver:
                 if continuation == output_ids:
                     return av_answer[0]
 
+    def is_valid_json(self, token_ids: list[int]) -> bool:
+        output = self.model.decode(token_ids)
+        nb_open_bracket = 0
+        nb_close_bracket = 0
+        for char in output:
+            if char == "{":
+                nb_open_bracket += 1
+            elif char == "}":
+                nb_close_bracket += 1
+        return nb_open_bracket == nb_close_bracket
+
+    def escape_invalid_json_backslashes(self, text: str) -> str:
+        return re.sub(
+            r'\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})',
+            r"\\\\",
+            text,
+        )
+
     def get_formated_output(
         self, fn_name: str, definition: dict, prompt: str
     ) -> dict:
@@ -156,24 +175,24 @@ class PromptSolver:
                 Return only a JSON object containing exactly the required parameters.
                 Do not include explanations.
                 Do not include markdown.
+                
 
-                Expected format:
+                number is type float should include a dot
+
+                Example format:
                     {{
-                    \"prompt\": \"{prompt}\",
+                    \"prompt\": {json.dumps(prompt)},
                     \"name\": \"{fn_name}\",
                     \"parameters\": {{
-                        ...
+                        
                     }}
                 }},
                 """
 
         output_ids = list(self.model.encode(f"""
             {{
-                    \"prompt\": \"{prompt}\",
-                    \"name\": \"{fn_name}\",
-                    \"parameters\": {{
-                        {list(parameters.keys())[0]}: 
-        """)[0])
+                \"prompt\": {json.dumps(prompt)},
+                \"name\": \"{fn_name}\",""")[0])
 
         input_ids = list(self.model.encode(query)[0])
 
@@ -187,9 +206,14 @@ class PromptSolver:
             import os
 
             os.system("cls" if os.name == "nt" else "clear")
-            print(self.model.decode(output_ids))
-
-        return {}
+            decoded = self.model.decode(output_ids)
+            print(decoded)
+            if self.is_valid_json(output_ids):
+                return json.loads(
+                    self.escape_invalid_json_backslashes(
+                        self.model.decode(output_ids)
+                    )
+                )
 
 
 def process_data(config: Config, llm: str = "Qwen/Qwen3-0.6B") -> None:
