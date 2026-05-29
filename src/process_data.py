@@ -1,9 +1,7 @@
 import json
-from os import wait
+import os
 import re
 from typing import Any
-
-from transformers import model_addition_debugger_context
 
 from llm_sdk import Small_LLM_Model
 from src.classes.Config import Config
@@ -176,8 +174,11 @@ class PromptSolver:
                 Do not include explanations.
                 Do not include markdown.
                 
-
                 number is type float should include a dot
+
+                required format:
+                \\ should be \\\\
+                \" should be \\\"
 
                 Example format:
                     {{
@@ -203,11 +204,10 @@ class PromptSolver:
 
             output_ids.append(self.get_next_token_id(logits, None))
 
-            import os
-
-            os.system("cls" if os.name == "nt" else "clear")
-            decoded = self.model.decode(output_ids)
-            print(f"""Prompt: {prompt}
+            if self.config.details:
+                os.system("cls" if os.name == "nt" else "clear")
+                decoded = self.model.decode(output_ids)
+                print(f"""Prompt: {prompt}
 
 Output: {decoded}""")
             if self.is_valid_json(output_ids):

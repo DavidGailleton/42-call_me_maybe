@@ -49,12 +49,12 @@ def get_function_definition(
     import json
 
     file_name: str | None = None
-    if "--function_definition" in argv:
+    if "--functions_definition" in argv:
         try:
             file_name = [
                 argv[i + 1]
                 for i in range(len(argv))
-                if argv[i] == "--function_definition"
+                if argv[i] == "--functions_definition"
             ][0]
         except IndexError:
             pass
@@ -92,5 +92,6 @@ def parsing(argv: list[str]) -> Config | None:
         function_definition=fn_def,
         input=input,
         output_file=output,
+        details="--details" in argv,
     )
     return config

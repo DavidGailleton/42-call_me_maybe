@@ -8,6 +8,9 @@ install:
 run:
 	$(PYTHON) -m src
 
+run_details:
+	$(PYTHON) -m src --details
+
 debug:
 	$(PYTHON) -m pdb src/__main__.py
 
