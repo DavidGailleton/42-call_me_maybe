@@ -173,12 +173,6 @@ class PromptSolver:
                 Return only a JSON object containing exactly the required parameters.
                 Do not include explanations.
                 Do not include markdown.
-                
-                number is type float should include a dot
-
-                required format:
-                \\ should be \\\\
-                \" should be \\\"
 
                 Example format:
                     {{
@@ -222,14 +216,17 @@ def process_data(config: Config, llm: str = "Qwen/Qwen3-0.6B") -> None:
     solver = PromptSolver(config, llm)
     output: list[dict[str, str | dict[str, Any]]] = []
     for prompt_d in config.input:
-        # try:
         prompt = prompt_d["prompt"]
-        fn_name = solver.get_fn_name(prompt)
-        definition = [
-            d for d in config.function_definition if d["name"] == fn_name
-        ][0]
-        output.append(solver.get_formated_output(fn_name, definition, prompt))
-    # except Exception as err:
+        try:
+            fn_name = solver.get_fn_name(prompt)
+            definition = [
+                d for d in config.function_definition if d["name"] == fn_name
+            ][0]
+            output.append(
+                solver.get_formated_output(fn_name, definition, prompt)
+            )
+        except Exception:
+            output.append({"prompt": prompt, "name": "error"})
     # print(f"{err}\n\n")
     print()
     with open(config.output_file, "w", encoding="utf-8") as o_file:
