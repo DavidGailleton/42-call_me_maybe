@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import time
 from typing import Any
 
 from llm_sdk import Small_LLM_Model
@@ -147,6 +148,20 @@ class PromptSolver:
             text,
         )
 
+    def convert_format(self, output: dict, param_definition: dict) -> str:
+        res: dict = {}
+        for param in param_definition:
+            try:
+                if param_definition[param] == "number":
+                    res[param] = float(output[param])
+                elif param_definition[param] == "integer":
+                    res[param] = int(output[param])
+                else:
+                    res[param] = output[param]
+            except Exception:
+                res[param] = "error"
+        return f"{res}".replace("'", '"')
+
     def get_formated_output(
         self, fn_name: str, definition: dict, prompt: str
     ) -> dict:
@@ -173,21 +188,22 @@ class PromptSolver:
                 Return only a JSON object containing exactly the required parameters.
                 Do not include explanations.
                 Do not include markdown.
-
+                
                 Example format:
                     {{
                     \"prompt\": {json.dumps(prompt)},
                     \"name\": \"{fn_name}\",
                     \"parameters\": {{
-                        
                     }}
                 }},
                 """
 
-        output_ids = list(self.model.encode(f"""
+        base_output = f"""
             {{
                 \"prompt\": {json.dumps(prompt)},
-                \"name\": \"{fn_name}\",""")[0])
+                \"name\": \"{fn_name}\","""
+
+        output_ids = list(self.model.encode(base_output)[0])
 
         input_ids = list(self.model.encode(query)[0])
 
@@ -205,11 +221,19 @@ class PromptSolver:
 
 Output: {decoded}""")
             if self.is_valid_json(output_ids):
-                return json.loads(
-                    self.escape_invalid_json_backslashes(
-                        self.model.decode(output_ids)
+                res = (
+                    base_output
+                    + '"parameters": '
+                    + self.convert_format(
+                        json.loads(self.model.decode(output_ids))[
+                            "parameters"
+                        ],
+                        parameters,
                     )
+                    + "}"
                 )
+
+                return json.loads(res)
 
 
 def process_data(config: Config, llm: str = "Qwen/Qwen3-0.6B") -> None:
@@ -227,7 +251,5 @@ def process_data(config: Config, llm: str = "Qwen/Qwen3-0.6B") -> None:
             )
         except Exception:
             output.append({"prompt": prompt, "name": "error"})
-    # print(f"{err}\n\n")
-    print()
     with open(config.output_file, "w", encoding="utf-8") as o_file:
         json.dump(output, o_file, indent=4, ensure_ascii=False)

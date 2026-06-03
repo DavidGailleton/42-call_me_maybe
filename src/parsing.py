@@ -11,20 +11,21 @@ def get_output_file(argv: list[str]) -> str:
 def test_args(args: list[str]) -> None:
     i: int = 1
     param_found: dict = {
-        "--function_definition": 0,
+        "--functions_definition": 0,
         "--input": 0,
         "--output": 0,
+        "--details": 0,
     }
     while i < len(args):
         match args[i]:
-            case "--function_definition":
-                if param_found["--function_definition"] == 1:
+            case "--functions_definition":
+                if param_found["--functions_definition"] == 1:
                     raise Exception(
-                        "--function_definition param has multiple"
+                        "--functions_definition param has multiple"
                         "definition in args"
                     )
                 i += 2
-                param_found["--function_definition"] = 1
+                param_found["--functions_definition"] = 1
             case "--input":
                 if param_found["--input"] == 1:
                     raise Exception(
@@ -39,8 +40,16 @@ def test_args(args: list[str]) -> None:
                     )
                 i += 2
                 param_found["--output"] = 1
+
+            case "--details":
+                if param_found["--details"] == 1:
+                    raise Exception(
+                        "--details param has multiple definition in args"
+                    )
+                i += 1
+                param_found["--details"] = 1
             case _:
-                raise Exception(f"Unknown argument: {argv[i]}")
+                raise Exception(f"Unknown argument: {args[i]}")
 
 
 def get_function_definition(
@@ -84,6 +93,8 @@ def get_input(argv: list[str]) -> list[dict[str, str]]:
 
 
 def parsing(argv: list[str]) -> Config | None:
+    test_args(argv)
+
     fn_def = get_function_definition(argv)
     input = get_input(argv)
     output = get_output_file(argv)
