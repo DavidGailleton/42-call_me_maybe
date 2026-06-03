@@ -1,51 +1,175 @@
 import array
 import json
+import unicodedata
+from pathlib import Path
+
+
+def bytes_to_unicode() -> dict[int, str]:
+    bs = (
+        list(range(ord("!"), ord("~") + 1))
+        + list(range(ord("¡"), ord("¬") + 1))
+        + list(range(ord("®"), ord("ÿ") + 1))
+    )
+    cs = bs[:]
+    n = 0
+
+    for b in range(256):
+        if b not in bs:
+            bs.append(b)
+            cs.append(256 + n)
+            n += 1
+
+    return {b: chr(c) for b, c in zip(bs, cs)}
+
+
+def get_pairs(tokens: tuple[str, ...]) -> set[tuple[str, str]]:
+    pairs: set[tuple[str, str]] = set()
+
+    for i in range(len(tokens) - 1):
+        pairs.add((tokens[i], tokens[i + 1]))
+
+    return pairs
 
 
 class Tokenizer:
-    def __init__(self, vocab_path: str) -> None:
-        with open(vocab_path, "r", encoding="utf-8") as file:
-            raw_vocab = json.load(file)
+    def __init__(self, tokenizer_path: str) -> None:
+        with Path(tokenizer_path).open("r", encoding="utf-8") as file:
+            data = json.load(file)
 
+        self.vocab: dict[str, int] = data["model"]["vocab"]
         self.id_to_token: dict[int, str] = {
-            int(token_id): token for token, token_id in raw_vocab.items()
+            token_id: token for token, token_id in self.vocab.items()
         }
 
-        self.token_to_id: dict[str, int] = {
-            token: token_id for token_id, token in self.id_to_token.items()
+        self.byte_encoder = bytes_to_unicode()
+        self.byte_decoder = {
+            token: byte for byte, token in self.byte_encoder.items()
         }
 
-        self.tokens_by_length: list[str] = sorted(
-            self.token_to_id.keys(),
-            key=len,
-            reverse=True,
+        merges = data["model"].get("merges", [])
+        self.bpe_ranks: dict[tuple[str, str], int] = {}
+
+        for index, merge in enumerate(merges):
+            if isinstance(merge, str):
+                left, right = merge.split()
+            else:
+                left, right = merge
+            self.bpe_ranks[(left, right)] = index
+
+    def normalize(self, text: str) -> str:
+        return unicodedata.normalize("NFC", text)
+
+    def pre_tokenize(self, text: str) -> list[str]:
+        """Approximate pre-tokenizer.
+
+        This is simpler than the real Qwen regex pre-tokenizer.
+        """
+        if text == "":
+            return []
+
+        pieces: list[str] = []
+        current = ""
+
+        for char in text:
+            if current == "":
+                current = char
+                continue
+
+            if char.isspace():
+                if current:
+                    pieces.append(current)
+                current = char
+            elif current[-1].isspace():
+                current += char
+                pieces.append(current)
+                current = ""
+            elif char.isalnum() == current[-1].isalnum():
+                current += char
+            else:
+                pieces.append(current)
+                current = char
+
+        if current:
+            pieces.append(current)
+
+        return pieces
+
+    def byte_level_encode(self, text: str) -> str:
+        return "".join(
+            self.byte_encoder[byte] for byte in text.encode("utf-8")
         )
 
-    def encode(self, text: str) -> list[array.ArrayType]:
-        result: list[int] = []
+    def apply_bpe(self, text: str) -> list[str]:
+        if text in self.vocab:
+            return [text]
 
-        for word in [
-            "Ġ" + w if i > 0 else w for i, w in enumerate(text.split(" "))
-        ]:
+        tokens = tuple(text)
+
+        while len(tokens) > 1:
+            pairs = get_pairs(tokens)
+
+            best_pair: tuple[str, str] | None = None
+            best_rank: int | None = None
+
+            for pair in pairs:
+                rank = self.bpe_ranks.get(pair)
+                if rank is not None and (
+                    best_rank is None or rank < best_rank
+                ):
+                    best_pair = pair
+                    best_rank = rank
+
+            if best_pair is None:
+                break
+
+            first, second = best_pair
+            new_tokens: list[str] = []
             index = 0
-            while index < len(word):
-                matched_token: str | None = None
 
-                for token in self.tokens_by_length:
-                    if word.startswith(token, index):
-                        matched_token = token
-                        break
-
-                if matched_token is None:
+            while index < len(tokens):
+                if (
+                    index < len(tokens) - 1
+                    and tokens[index] == first
+                    and tokens[index + 1] == second
+                ):
+                    new_tokens.append(first + second)
+                    index += 2
+                else:
+                    new_tokens.append(tokens[index])
                     index += 1
-                    continue
 
-                result.append(self.token_to_id[matched_token])
-                index += len(matched_token)
+            tokens = tuple(new_tokens)
 
-        return [array.array("i", result)]
+        return list(tokens)
 
-    def decode(self, token_ids: list[int]) -> str:
-        return "".join(
-            self.id_to_token[token_id] for token_id in token_ids
-        ).replace("Ġ", " ")
+    def encode(self, text: str) -> list[array.ArrayType]:
+        normalized = self.normalize(text)
+        pieces = self.pre_tokenize(normalized)
+
+        ids: list[int] = []
+
+        for piece in pieces:
+            byte_piece = self.byte_level_encode(piece)
+            bpe_tokens = self.apply_bpe(byte_piece)
+
+            for token in bpe_tokens:
+                token_id = self.vocab.get(token)
+
+                if token_id is None:
+                    raise ValueError(f"Unknown token after BPE: {token!r}")
+
+                ids.append(token_id)
+
+        return [array.array("i", ids)]
+
+    def decode(self, ids: list[int]) -> str:
+        text = "".join(self.id_to_token[token_id] for token_id in ids)
+
+        byte_array = bytearray()
+
+        for char in text:
+            byte = self.byte_decoder.get(char)
+            if byte is not None:
+                byte_array.append(byte)
+
+        return byte_array.decode("utf-8", errors="replace")

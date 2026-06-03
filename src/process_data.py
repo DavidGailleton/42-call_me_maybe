@@ -12,7 +12,9 @@ class PromptSolver:
     def __init__(self, config: Config) -> None:
         self.config = config
         self.model = Small_LLM_Model(model_name=self.config.llm)
-        self.tokenizer = Tokenizer(self.model.get_path_to_vocab_file())
+        self.tokenizer = Tokenizer(
+            self.model.get_path_to_tokenizer_file(),
+        )
         with open(self.model.get_path_to_vocab_file()) as file:
             self.vocab = json.load(file)
         self.vocab_size = len(self.vocab)
@@ -222,11 +224,13 @@ class PromptSolver:
             output_ids.append(self.get_next_token_id(logits, None))
 
             if self.config.details:
-                os.system("cls" if os.name == "nt" else "clear")
+                # os.system("cls" if os.name == "nt" else "clear")
                 decoded = self.decode(output_ids)
                 print(f"""Prompt: {prompt}
 
 Output: {decoded}""")
+            if len(output_ids) > len(input_ids):
+                raise Exception("Output not found")
             if self.is_valid_json(output_ids):
                 res = (
                     base_output
@@ -254,7 +258,8 @@ def process_data(config: Config) -> None:
             output.append(
                 solver.get_formated_output(fn_name, definition, prompt)
             )
-        except Exception:
+        except Exception as err:
+            print(err)
             output.append({"prompt": prompt, "name": "error"})
     with open(config.output_file, "w", encoding="utf-8") as o_file:
         json.dump(output, o_file, indent=4, ensure_ascii=False)
