@@ -15,6 +15,8 @@ def test_args(args: list[str]) -> None:
         "--input": 0,
         "--output": 0,
         "--details": 0,
+        "--llm": 0,
+        "--tokenizer": 0,
     }
     while i < len(args):
         match args[i]:
@@ -40,7 +42,13 @@ def test_args(args: list[str]) -> None:
                     )
                 i += 2
                 param_found["--output"] = 1
-
+            case "--llm":
+                if param_found["--llm"] == 1:
+                    raise Exception(
+                        "--llm param has multiple definition in args"
+                    )
+                i += 2
+                param_found["--llm"] = 1
             case "--details":
                 if param_found["--details"] == 1:
                     raise Exception(
@@ -48,6 +56,13 @@ def test_args(args: list[str]) -> None:
                     )
                 i += 1
                 param_found["--details"] = 1
+            case "--tokenizer":
+                if param_found["--tokenizer"] == 1:
+                    raise Exception(
+                        "--tokenizer param has multiple definition in args"
+                    )
+                i += 1
+                param_found["--tokenizer"] = 1
             case _:
                 raise Exception(f"Unknown argument: {args[i]}")
 
@@ -92,17 +107,32 @@ def get_input(argv: list[str]) -> list[dict[str, str]]:
     return content
 
 
+def get_llm(argv: list[str]) -> str:
+    llm: str = "Qwen/Qwen3-0.6B"
+    if "--llm" in argv:
+        try:
+            llm = [
+                argv[i + 1] for i in range(len(argv)) if argv[i] == "--input"
+            ][0]
+        except IndexError:
+            pass
+    return llm
+
+
 def parsing(argv: list[str]) -> Config | None:
     test_args(argv)
 
     fn_def = get_function_definition(argv)
     input = get_input(argv)
     output = get_output_file(argv)
+    llm = get_llm(argv)
 
     config = Config(
         function_definition=fn_def,
         input=input,
         output_file=output,
         details="--details" in argv,
+        tokenizer="--tokenizer" in argv,
+        llm=llm,
     )
     return config

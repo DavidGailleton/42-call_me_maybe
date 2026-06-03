@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["flake8>=7.0.0", "mypy>=1.10.0", "pytest>=8.0.0"]
+dev = ["flake8>=7.0.0", "mypy>=1.10.0", "pytest>=8.0.0", "flake8-pyproject"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -30,4 +30,11 @@ disallow_untyped_defs = true
 check_untyped_defs = true
 
 [tool.flake8]
-exclude = [".venv", "__pycache__", ".mypy_cache", ".pytest_cache"]
+exclude = [
+  ".venv",
+  "__pycache__",
+  ".mypy_cache",
+  ".pytest_cache",
+  "moulinette",
+  "llm_sdk",
+]

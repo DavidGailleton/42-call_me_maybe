@@ -1,20 +1,27 @@
 import json
 import os
 import re
-import time
 from typing import Any
 
 from llm_sdk import Small_LLM_Model
 from src.classes.Config import Config
+from src.classes.Tokenizer import Tokenizer
 
 
 class PromptSolver:
-    def __init__(self, config: Config, llm: str) -> None:
+    def __init__(self, config: Config) -> None:
         self.config = config
-        self.model = Small_LLM_Model(model_name=llm)
+        self.model = Small_LLM_Model(model_name=self.config.llm)
+        self.tokenizer = Tokenizer(self.model.get_path_to_vocab_file())
         with open(self.model.get_path_to_vocab_file()) as file:
             self.vocab = json.load(file)
         self.vocab_size = len(self.vocab)
+        if self.config.tokenizer:
+            self.encode = self.tokenizer.encode
+            self.decode = self.tokenizer.decode
+        else:
+            self.encode = self.model.encode
+            self.decode = self.model.decode
 
     class FunctionNotFound(Exception):
         pass
@@ -57,12 +64,12 @@ class PromptSolver:
         Return a mask over the vocabulary for the next valid token.
         output_ids contains only the generated continuation.
         """
-        query_ids = self.model.encode(query)[0].tolist()
+        query_ids = self.encode(query)[0].tolist()
         vocab_size = self.vocab_size
         mask = [0] * vocab_size
 
         for name in fn_names:
-            full_ids = self.model.encode(query + name)[0].tolist()
+            full_ids = self.encode(query + name)[0].tolist()
 
             if full_ids[: len(query_ids)] != query_ids:
                 continue
@@ -89,7 +96,8 @@ class PromptSolver:
         query = (
             "<|im_start|>system\n"
             "You must choose exactly one function name from the list below.\n"
-            "Output only the function name, with no explanation and no extra text.<|im_end|>\n"
+            "Output only the function name,"
+            "with no explanation and no extra text.<|im_end|>\n"
             f"Available functions:\n{fn_def_formated}\n"
             "<|im_start|>user\n"
             f"{prompt}<|im_end|>\n"
@@ -100,10 +108,10 @@ class PromptSolver:
             fn["name"] for fn in self.config.function_definition
         ]
 
-        input_ids = self.model.encode(query)[0].tolist()
+        input_ids = self.encode(query)[0].tolist()
         output_ids: list[int] = []
 
-        query_ids = self.model.encode(query)[0].tolist()
+        query_ids = self.encode(query)[0].tolist()
 
         while True:
             full_ids = input_ids + output_ids
@@ -117,21 +125,19 @@ class PromptSolver:
 
             av_answer: list[str] = []
             for name in fn_names:
-                full_name_ids = self.model.encode(query + name)[0].tolist()
+                full_name_ids = self.encode(query + name)[0].tolist()
                 continuation = full_name_ids[len(query_ids) :]
                 if continuation[: len(output_ids)] == output_ids:
                     av_answer.append(name)
 
             if len(av_answer) == 1:
-                full_name_ids = self.model.encode(query + av_answer[0])[
-                    0
-                ].tolist()
+                full_name_ids = self.encode(query + av_answer[0])[0].tolist()
                 continuation = full_name_ids[len(query_ids) :]
                 if continuation == output_ids:
                     return av_answer[0]
 
     def is_valid_json(self, token_ids: list[int]) -> bool:
-        output = self.model.decode(token_ids)
+        output = self.decode(token_ids)
         nb_open_bracket = 0
         nb_close_bracket = 0
         for char in output:
@@ -171,7 +177,8 @@ class PromptSolver:
 
         query = f"""You are a function calling argument extractor.
 
-                Your task is to extract the arguments for the selected function from the user request.
+                Your task is to extract the arguments\
+                for the selected function from the user request.
 
                 User request:
                 \"{prompt}\"
@@ -185,10 +192,11 @@ class PromptSolver:
                 Required parameters:
                 {parameters}
 
-                Return only a JSON object containing exactly the required parameters.
+                Return only a JSON object containing exactly\
+                the required parameters.
                 Do not include explanations.
                 Do not include markdown.
-                
+
                 Example format:
                     {{
                     \"prompt\": {json.dumps(prompt)},
@@ -203,9 +211,8 @@ class PromptSolver:
                 \"prompt\": {json.dumps(prompt)},
                 \"name\": \"{fn_name}\","""
 
-        output_ids = list(self.model.encode(base_output)[0])
-
-        input_ids = list(self.model.encode(query)[0])
+        output_ids = self.encode(base_output)[0].tolist()
+        input_ids = self.encode(query)[0].tolist()
 
         while True:
             logits = self.model.get_logits_from_input_ids(
@@ -216,7 +223,7 @@ class PromptSolver:
 
             if self.config.details:
                 os.system("cls" if os.name == "nt" else "clear")
-                decoded = self.model.decode(output_ids)
+                decoded = self.decode(output_ids)
                 print(f"""Prompt: {prompt}
 
 Output: {decoded}""")
@@ -225,9 +232,7 @@ Output: {decoded}""")
                     base_output
                     + '"parameters": '
                     + self.convert_format(
-                        json.loads(self.model.decode(output_ids))[
-                            "parameters"
-                        ],
+                        json.loads(self.decode(output_ids))["parameters"],
                         parameters,
                     )
                     + "}"
@@ -236,8 +241,8 @@ Output: {decoded}""")
                 return json.loads(res)
 
 
-def process_data(config: Config, llm: str = "Qwen/Qwen3-0.6B") -> None:
-    solver = PromptSolver(config, llm)
+def process_data(config: Config) -> None:
+    solver = PromptSolver(config)
     output: list[dict[str, str | dict[str, Any]]] = []
     for prompt_d in config.input:
         prompt = prompt_d["prompt"]

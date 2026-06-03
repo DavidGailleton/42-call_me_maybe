@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class Config(BaseModel):
@@ -6,6 +6,8 @@ class Config(BaseModel):
     input: list[dict[str, str]]
     output_file: str
     details: bool
+    tokenizer: bool
+    llm: str = Field(default="Qwen/Qwen3-0.6B")
 
     @field_validator("function_definition")
     def validate_function_def(cls, v: list) -> list:
