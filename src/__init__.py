@@ -1,3 +1,5 @@
+"""Public package exports for the function-calling project."""
+
 from .parsing import parsing
 from .process_data import process_data
 from .classes.Config import Config

@@ -1,16 +1,65 @@
+from __future__ import annotations
+
+import json
+from typing import Any, cast
+
 from src.classes.Config import Config
+
+FunctionDefinition = dict[str, Any]
+PromptInput = dict[str, str]
+
+
+def _get_option_value(argv: list[str], option: str) -> str | None:
+    """Return the value following a command-line option.
+
+    Args:
+        argv: Full command-line argument list.
+        option: Option name to search for.
+
+    Returns:
+        The option value if present, otherwise None.
+    """
+    for index, arg in enumerate(argv):
+        if arg == option and index + 1 < len(argv):
+            return argv[index + 1]
+    return None
 
 
 def get_output_file(argv: list[str]) -> str:
-    for i in range(len(argv) - 1):
-        if argv[i + 1] == "--output" and i < len(argv) - 2:
-            return argv[i + 2]
-    return "data/output/function_calls.json"
+    """Return the output file path from arguments or the default path.
+
+    Args:
+        argv: Full command-line argument list.
+
+    Returns:
+        Output file path.
+    """
+    output = _get_option_value(argv, "--output")
+    if output is None:
+        return "data/output/function_calls.json"
+    return output
 
 
 def test_args(args: list[str]) -> None:
-    i: int = 1
-    param_found: dict[str, int] = {
+    """Validate supported command-line arguments.
+
+    Args:
+        args: Full command-line argument list.
+
+    Raises:
+        ValueError: If an argument is unknown, duplicated, or missing a value.
+    """
+    value_options = {
+        "--functions_definition",
+        "--input",
+        "--output",
+        "--llm",
+    }
+    flag_options = {
+        "--details",
+        "--tokenizer",
+    }
+    found: dict[str, int] = {
         "--functions_definition": 0,
         "--input": 0,
         "--output": 0,
@@ -18,121 +67,122 @@ def test_args(args: list[str]) -> None:
         "--llm": 0,
         "--tokenizer": 0,
     }
-    while i < len(args):
-        match args[i]:
-            case "--functions_definition":
-                if param_found["--functions_definition"] == 1:
-                    raise Exception(
-                        "--functions_definition param has multiple"
-                        "definition in args"
-                    )
-                i += 2
-                param_found["--functions_definition"] = 1
-            case "--input":
-                if param_found["--input"] == 1:
-                    raise Exception(
-                        "--input param has multiple definition in args"
-                    )
-                i += 2
-                param_found["--input"] = 1
-            case "--output":
-                if param_found["--output"] == 1:
-                    raise Exception(
-                        "--output param has multiple definition in args"
-                    )
-                i += 2
-                param_found["--output"] = 1
-            case "--llm":
-                if param_found["--llm"] == 1:
-                    raise Exception(
-                        "--llm param has multiple definition in args"
-                    )
-                i += 2
-                param_found["--llm"] = 1
-            case "--details":
-                if param_found["--details"] == 1:
-                    raise Exception(
-                        "--details param has multiple definition in args"
-                    )
-                i += 1
-                param_found["--details"] = 1
-            case "--tokenizer":
-                if param_found["--tokenizer"] == 1:
-                    raise Exception(
-                        "--tokenizer param has multiple definition in args"
-                    )
-                i += 1
-                param_found["--tokenizer"] = 1
-            case _:
-                raise Exception(f"Unknown argument: {args[i]}")
+
+    index = 1
+    while index < len(args):
+        arg = args[index]
+
+        if arg in value_options:
+            if found[arg] == 1:
+                raise ValueError(f"{arg} parameter is defined multiple times")
+            if index + 1 >= len(args) or args[index + 1].startswith("--"):
+                raise ValueError(f"{arg} requires a value")
+            found[arg] = 1
+            index += 2
+        elif arg in flag_options:
+            if found[arg] == 1:
+                raise ValueError(f"{arg} parameter is defined multiple times")
+            found[arg] = 1
+            index += 1
+        else:
+            raise ValueError(f"Unknown argument: {arg}")
 
 
-def get_function_definition(
-    argv: list[str],
-) -> list[dict[str, str | dict[str, str | dict[str, str]]]]:
-    import json
+def _load_json_file(file_name: str) -> Any:
+    """Load and parse a JSON file.
 
-    file_name: str | None = None
-    if "--functions_definition" in argv:
-        try:
-            file_name = [
-                argv[i + 1]
-                for i in range(len(argv))
-                if argv[i] == "--functions_definition"
-            ][0]
-        except IndexError:
-            pass
+    Args:
+        file_name: Path to the JSON file.
+
+    Returns:
+        Parsed JSON content.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        json.JSONDecodeError: If the file is not valid JSON.
+    """
+    with open(file_name, "r", encoding="utf-8") as file:
+        return json.load(file)
+
+
+def get_function_definition(argv: list[str]) -> list[FunctionDefinition]:
+    """Load the function definition file.
+
+    Args:
+        argv: Full command-line argument list.
+
+    Returns:
+        List of function definition dictionaries.
+    """
+    file_name = _get_option_value(argv, "--functions_definition")
     if file_name is None:
         file_name = "data/input/functions_definition.json"
-    with open(file_name, "r") as file:
-        content = json.loads(file.read())
-        return content
+
+    content = _load_json_file(file_name)
+
+    if not isinstance(content, list):
+        raise ValueError("functions_definition file must contain a JSON array")
+
+    return cast(list[FunctionDefinition], content)
 
 
-def get_input(argv: list[str]) -> list[dict[str, str]]:
-    import json
+def get_input(argv: list[str]) -> list[PromptInput]:
+    """Load the prompt input file.
 
-    file_name: str | None = None
-    if "--input" in argv:
-        try:
-            file_name = [
-                argv[i + 1] for i in range(len(argv)) if argv[i] == "--input"
-            ][0]
-        except IndexError:
-            pass
+    Args:
+        argv: Full command-line argument list.
+
+    Returns:
+        List of prompt dictionaries.
+    """
+    file_name = _get_option_value(argv, "--input")
     if file_name is None:
         file_name = "data/input/function_calling_tests.json"
-    with open(file_name, "r") as file:
-        content = json.load(file)
-        return content
+
+    content = _load_json_file(file_name)
+
+    if not isinstance(content, list):
+        raise ValueError("input file must contain a JSON array")
+
+    return cast(list[PromptInput], content)
 
 
 def get_llm(argv: list[str]) -> str:
-    llm: str = "Qwen/Qwen3-0.6B"
-    if "--llm" in argv:
-        try:
-            llm = [
-                argv[i + 1] for i in range(len(argv)) if argv[i] == "--input"
-            ][0]
-        except IndexError:
-            pass
+    """Return the selected LLM model name.
+
+    Args:
+        argv: Full command-line argument list.
+
+    Returns:
+        Model name.
+    """
+    llm = _get_option_value(argv, "--llm")
+    if llm is None:
+        return "Qwen/Qwen3-0.6B"
     return llm
 
 
 def parsing(argv: list[str]) -> Config | None:
+    """Parse command-line arguments and build the application configuration.
+
+    Args:
+        argv: Full command-line argument list.
+
+    Returns:
+        A Config instance, or None if parsing should stop.
+    """
     test_args(argv)
 
     fn_def = get_function_definition(argv)
-    input = get_input(argv)
+    input_data = get_input(argv)
     output = get_output_file(argv)
     llm = get_llm(argv)
 
-    config = Config(
+    return Config(
         function_definition=fn_def,
-        input=input,
+        input=input_data,
         output_file=output,
         details="--details" in argv,
         tokenizer="--tokenizer" in argv,
         llm=llm,
     )
-    return config

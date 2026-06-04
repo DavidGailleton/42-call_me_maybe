@@ -5,6 +5,11 @@ from pathlib import Path
 
 
 def bytes_to_unicode() -> dict[int, str]:
+    """Build a reversible byte-to-unicode mapping.
+
+    Returns:
+        Dictionary mapping byte values to unicode characters.
+    """
     bs = (
         list(range(ord("!"), ord("~") + 1))
         + list(range(ord("¡"), ord("¬") + 1))
@@ -23,6 +28,14 @@ def bytes_to_unicode() -> dict[int, str]:
 
 
 def get_pairs(tokens: tuple[str, ...]) -> set[tuple[str, str]]:
+    """Return adjacent token pairs.
+
+    Args:
+        tokens: Tuple of token strings.
+
+    Returns:
+        Set of adjacent token pairs.
+    """
     pairs: set[tuple[str, str]] = set()
 
     for i in range(len(tokens) - 1):
@@ -32,7 +45,19 @@ def get_pairs(tokens: tuple[str, ...]) -> set[tuple[str, str]]:
 
 
 class Tokenizer:
+    """Minimal byte-level BPE tokenizer implementation.
+
+    The tokenizer loads a Hugging Face-style tokenizer JSON file and implements
+    normalization, pre-tokenization, byte-level encoding, BPE merging, encoding,
+    and decoding.
+    """
+
     def __init__(self, tokenizer_path: str) -> None:
+        """Initialize the tokenizer from a tokenizer JSON file.
+
+        Args:
+            tokenizer_path: Path to the tokenizer JSON file.
+        """
         with Path(tokenizer_path).open("r", encoding="utf-8") as file:
             data = json.load(file)
 
@@ -57,9 +82,25 @@ class Tokenizer:
             self.bpe_ranks[(left, right)] = index
 
     def normalize(self, text: str) -> str:
+        """Normalize text before tokenization.
+
+        Args:
+            text: Raw input text.
+
+        Returns:
+            NFC-normalized text.
+        """
         return unicodedata.normalize("NFC", text)
 
     def pre_tokenize(self, text: str) -> list[str]:
+        """Split text into approximate pre-tokenization pieces.
+
+        Args:
+            text: Normalized input text.
+
+        Returns:
+            List of text pieces.
+        """
         if text == "":
             return []
 
@@ -91,11 +132,27 @@ class Tokenizer:
         return pieces
 
     def byte_level_encode(self, text: str) -> str:
+        """Encode text into byte-level unicode symbols.
+
+        Args:
+            text: Text piece to encode.
+
+        Returns:
+            Byte-level unicode representation.
+        """
         return "".join(
             self.byte_encoder[byte] for byte in text.encode("utf-8")
         )
 
     def apply_bpe(self, text: str) -> list[str]:
+        """Apply BPE merges to byte-level encoded text.
+
+        Args:
+            text: Byte-level encoded text.
+
+        Returns:
+            List of BPE tokens.
+        """
         if text in self.vocab:
             return [text]
 
@@ -139,6 +196,17 @@ class Tokenizer:
         return list(tokens)
 
     def encode(self, text: str) -> list[array.ArrayType[int]]:
+        """Encode text into token IDs.
+
+        Args:
+            text: Input text.
+
+        Returns:
+            A list containing one array of token IDs.
+
+        Raises:
+            ValueError: If a token cannot be found in the vocabulary.
+        """
         normalized = self.normalize(text)
         pieces = self.pre_tokenize(normalized)
 
@@ -159,6 +227,14 @@ class Tokenizer:
         return [array.array("i", ids)]
 
     def decode(self, ids: list[int]) -> str:
+        """Decode token IDs back into text.
+
+        Args:
+            ids: Token IDs to decode.
+
+        Returns:
+            Decoded text.
+        """
         text = "".join(self.id_to_token[token_id] for token_id in ids)
 
         byte_array = bytearray()

@@ -355,7 +355,8 @@ def test_get_llm_default() -> None:
 
 
 @pytest.mark.xfail(
-    reason="Current get_llm() implementation searches for '--input' instead of '--llm'."
+    reason="Current get_llm() implementation searches "
+    "for '--input' instead of '--llm'."
 )
 def test_get_llm_custom() -> None:
     argv = [

@@ -42,13 +42,17 @@
         "prompt": "Execute SQL query 'SELECT * FROM users' on the production database",
         "name": "fn_execute_sql_query",
         "parameters": {
-            "query": "SELECT * FROM ustoers",
+            "query": "SELECT * FROM users",
             "database": "production"
         }
     },
     {
         "prompt": "Run the query 'INSERT INTO logs VALUES (1, 2, 3)' on the system database",
-        "name": "error"
+        "name": "fn_execute_sql_query",
+        "parameters": {
+            "query": "INSERT INTO logs VALUES (1, 2, 3)",
+            "database": "system"
+        }
     },
     {
         "prompt": "Read the file at /home/user/data.json with utf-8 encoding",
@@ -60,11 +64,7 @@
     },
     {
         "prompt": "Read C:\\Users\\john\\config.ini with latin-1 encoding",
-        "name": "fn_read_file",
-        "parameters": {
-            "path": "string",
-            "encoding": "string"
-        }
+        "name": "error"
     },
     {
         "prompt": "Format template: Hello {user}'s profile!",
