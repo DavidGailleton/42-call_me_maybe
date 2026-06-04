@@ -142,7 +142,7 @@ class Tokenizer:
 
         return list(tokens)
 
-    def encode(self, text: str) -> list[array.ArrayType]:
+    def encode(self, text: str) -> list[array.ArrayType[int]]:
         normalized = self.normalize(text)
         pieces = self.pre_tokenize(normalized)
 

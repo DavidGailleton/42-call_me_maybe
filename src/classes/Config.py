@@ -10,7 +10,9 @@ class Config(BaseModel):
     llm: str = Field(default="Qwen/Qwen3-0.6B")
 
     @field_validator("function_definition")
-    def validate_function_def(cls, v: list) -> list:
+    def validate_function_def(
+        cls, v: list[dict[str, str | dict[str, str | dict[str, str]]]]
+    ) -> list[dict[str, str | dict[str, str | dict[str, str]]]]:
         try:
             for fn in v:
                 fn["name"]
@@ -24,7 +26,7 @@ class Config(BaseModel):
         return v
 
     @field_validator("input")
-    def validate_input(cls, v: list) -> list:
+    def validate_input(cls, v: list[dict[str, str]]) -> list[dict[str, str]]:
         try:
             for prompt in v:
                 prompt["prompt"]

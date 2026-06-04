@@ -10,7 +10,7 @@ def get_output_file(argv: list[str]) -> str:
 
 def test_args(args: list[str]) -> None:
     i: int = 1
-    param_found: dict = {
+    param_found: dict[str, int] = {
         "--functions_definition": 0,
         "--input": 0,
         "--output": 0,
@@ -85,8 +85,8 @@ def get_function_definition(
     if file_name is None:
         file_name = "data/input/functions_definition.json"
     with open(file_name, "r") as file:
-        content = json.load(file)
-    return content
+        content = json.loads(file.read())
+        return content
 
 
 def get_input(argv: list[str]) -> list[dict[str, str]]:
@@ -104,7 +104,7 @@ def get_input(argv: list[str]) -> list[dict[str, str]]:
         file_name = "data/input/function_calling_tests.json"
     with open(file_name, "r") as file:
         content = json.load(file)
-    return content
+        return content
 
 
 def get_llm(argv: list[str]) -> str:

@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 import re
 from typing import Any
 
@@ -224,7 +225,7 @@ class PromptSolver:
             output_ids.append(self.get_next_token_id(logits, None))
 
             if self.config.details:
-                # os.system("cls" if os.name == "nt" else "clear")
+                os.system("cls" if os.name == "nt" else "clear")
                 decoded = self.decode(output_ids)
                 print(f"""Prompt: {prompt}
 
@@ -261,5 +262,6 @@ def process_data(config: Config) -> None:
         except Exception as err:
             print(err)
             output.append({"prompt": prompt, "name": "error"})
+    Path(config.output_file).parent.mkdir(parents=True, exist_ok=True)
     with open(config.output_file, "w", encoding="utf-8") as o_file:
         json.dump(output, o_file, indent=4, ensure_ascii=False)
