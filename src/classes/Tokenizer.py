@@ -60,10 +60,6 @@ class Tokenizer:
         return unicodedata.normalize("NFC", text)
 
     def pre_tokenize(self, text: str) -> list[str]:
-        """Approximate pre-tokenizer.
-
-        This is simpler than the real Qwen regex pre-tokenizer.
-        """
         if text == "":
             return []
 
