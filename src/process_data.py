@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import time
 import json
 import os
 from pathlib import Path
@@ -353,7 +354,12 @@ class PromptSolver:
                     result[param] = int(output[param])
                 else:
                     result[param] = output[param]
-            except Exception:
+            except Exception as err:
+                print(err)
+                from time import sleep
+
+                sleep(3)
+
                 result[param] = "error"
 
         return json.dumps(result, ensure_ascii=False)
@@ -378,6 +384,8 @@ class PromptSolver:
             str(key): str(value["type"])
             for key, value in definition["parameters"].items()
         }
+        if len(parameters) == 0:
+            parameters = {"": ""}
 
         query = f"""<|im_start|>system
 You are a function calling argument extractor.
@@ -387,30 +395,58 @@ Your task is to extract the arguments for the selected function from the user re
 User request:
 {json.dumps(prompt)}
 
-Selected function:
-{json.dumps(fn_name)}
+Function description:
+{json.dumps(definition['description'])}
 
 Required parameters:
 {json.dumps(parameters)}
 
-Return only a JSON object containing exactly the required parameters.
+Return only a JSON object containing exactly the prompt, name and parameters.
 Do not include explanations.
 Do not include markdown.
 
-Example format:
-    {{
-    \"prompt\": {json.dumps(prompt)},
-    \"name\": \"{fn_name}\",
-    \"parameters\": {{
-    }}
-}},<|im_end|>
+Good examples:
+
+User request:
+\"Greet shrek\"
+
+Required parameters:
+{{\"name\": \"string\"}}
+
+Expected output:
+{{
+  \"name\": \"shrek\"
+}}
+
+Bad output:
+{{
+  \"name\": \"string\"
+}}
+
+User request:
+\"What is the sum of 2 and 3?\"
+
+Required parameters:
+{{\"a\": \"number\", \"b\": \"number\"}}
+
+Correct output:
+{{
+  \"a\": 2,
+  \"b\": 3
+}}
+
+Bad output:
+{{
+  \"a\": \"number\",
+  \"b\": \"number\"
+}}
+
+Now extract the arguments for the current request.<|im_end|>
 <|im_start|>assistant"""
 
         base_output = f"""
 {{
-    \"prompt\": {json.dumps(prompt)},
-    \"name\": \"{fn_name}\",
-    \"parameters\": {{"""
+    {json.dumps(list(parameters.keys())[0])}"""
 
         output_ids = self.encode_text(base_output)
         input_ids = self.encode_text(query)
@@ -440,7 +476,7 @@ Output: {decoded}""")
                     "name": fn_name,
                     "parameters": json.loads(
                         self.convert_format(
-                            cast(dict[str, Any], parsed_output)["parameters"],
+                            cast(dict[str, Any], parsed_output),
                             parameters,
                         )
                     ),

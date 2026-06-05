@@ -58,8 +58,8 @@
         "prompt": "Read the file at /home/user/data.json with utf-8 encoding",
         "name": "fn_read_file",
         "parameters": {
-            "path": "string",
-            "encoding": "string"
+            "path": "/home/user/data.json",
+            "encoding": "utf-8"
         }
     },
     {
@@ -70,7 +70,7 @@
         "prompt": "Format template: Hello {user}'s profile!",
         "name": "fn_format_template",
         "parameters": {
-            "template": "string"
+            "template": "Hello {user}'s profile!"
         }
     },
     {
