@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import time
 import json
 import os
 from pathlib import Path
@@ -15,9 +14,9 @@ from src.classes.Tokenizer import Tokenizer
 class PromptSolver:
     """Solve natural-language prompts into structured function calls.
 
-    The solver uses the LLM to select a function and extract parameters. Function
-    name generation is constrained so that the model can only produce one of the
-    declared function names.
+    The solver uses the LLM to select a function and extract parameters.
+    Function name generation is constrained so that the model can only
+    produce one of the declared function names.
     """
 
     class FunctionNotFound(Exception):
@@ -27,7 +26,7 @@ class PromptSolver:
         """Initialize the prompt solver.
 
         Args:
-            config: Runtime configuration containing input data and model setup.
+          config: Runtime configuration containing input data and model setup.
         """
         self.config = config
         self.function_definitions = cast(
@@ -163,14 +162,14 @@ class PromptSolver:
         """Return the highest-scoring allowed token ID.
 
         Args:
-            logits: Score for each token in the vocabulary.
-            token_mask: Optional mask where 1 means allowed and 0 means blocked.
+          logits: Score for each token in the vocabulary.
+          token_mask: Optional mask where 1 means allowed and 0 means blocked.
 
         Returns:
-            Selected token ID.
+          Selected token ID.
 
         Raises:
-            ValueError: If no valid token can be selected.
+          ValueError: If no valid token can be selected.
         """
         if token_mask is None:
             token_mask = [1] * len(logits)
@@ -221,7 +220,7 @@ class PromptSolver:
             if full_ids[: len(query_ids)] != query_ids:
                 continue
 
-            continuation = full_ids[len(query_ids) :]
+            continuation = full_ids[len(query_ids):]
 
             if len(output_ids) > len(continuation):
                 continue
@@ -284,13 +283,13 @@ class PromptSolver:
             available_answers: list[str] = []
             for name in fn_names:
                 full_name_ids = self.encode_text(query + name)
-                continuation = full_name_ids[len(query_ids) :]
+                continuation = full_name_ids[len(query_ids):]
                 if continuation[: len(output_ids)] == output_ids:
                     available_answers.append(name)
 
             if len(available_answers) == 1:
                 full_name_ids = self.encode_text(query + available_answers[0])
-                continuation = full_name_ids[len(query_ids) :]
+                continuation = full_name_ids[len(query_ids):]
                 if continuation == output_ids:
                     return available_answers[0]
 
@@ -390,7 +389,8 @@ class PromptSolver:
         query = f"""<|im_start|>system
 You are a function calling argument extractor.
 
-Your task is to extract the arguments for the selected function from the user request.<|im_end|>
+Your task is to extract the arguments for the selected\
+ function from the user request.<|im_end|>
 <|im_start|>user
 User request:
 {json.dumps(prompt)}

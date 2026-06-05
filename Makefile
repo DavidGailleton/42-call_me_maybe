@@ -22,7 +22,7 @@ clean:
 	find . -type f -name "*.pyc" -delete
 
 lint:
-	#uv run flake8 .
+	uv run flake8 .
 	uv run mypy . --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
 
 lint-strict:

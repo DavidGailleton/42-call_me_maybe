@@ -47,9 +47,11 @@ def get_pairs(tokens: tuple[str, ...]) -> set[tuple[str, str]]:
 class Tokenizer:
     """Minimal byte-level BPE tokenizer implementation.
 
-    The tokenizer loads a Hugging Face-style tokenizer JSON file and implements
-    normalization, pre-tokenization, byte-level encoding, BPE merging, encoding,
-    and decoding.
+    The tokenizer loads a Hugging Face-style tokenizer
+    JSON file and implements
+
+    normalization, pre-tokenization, byte-level encoding,
+    BPE merging, encoding, and decoding.
     """
 
     def __init__(self, tokenizer_path: str) -> None:
