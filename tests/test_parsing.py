@@ -16,6 +16,7 @@ from src.parsing import (
 
 
 def valid_function_definition() -> list[dict[str, Any]]:
+    """Return a valid function definition fixture."""
     return [
         {
             "name": "fn_add_numbers",
@@ -38,6 +39,7 @@ def valid_function_definition() -> list[dict[str, Any]]:
 
 
 def valid_input() -> list[dict[str, str]]:
+    """Return a valid prompt input fixture."""
     return [
         {"prompt": "What is the sum of 2 and 3?"},
         {"prompt": "Greet Shrek"},
@@ -45,6 +47,12 @@ def valid_input() -> list[dict[str, str]]:
 
 
 def write_json(path: Path, data: Any) -> None:
+    """Write JSON data to a file.
+
+    Args:
+        path: Destination JSON file path.
+        data: JSON-serializable data to write.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
 
     with path.open("w", encoding="utf-8") as file:
@@ -53,8 +61,18 @@ def write_json(path: Path, data: Any) -> None:
 
 @pytest.fixture
 def default_project_files(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> Path:
+    """Create default input files in a temporary project directory.
+
+    Args:
+        tmp_path: Pytest temporary directory.
+        monkeypatch: Pytest monkeypatch fixture.
+
+    Returns:
+        The temporary project root.
+    """
     monkeypatch.chdir(tmp_path)
 
     write_json(
@@ -70,12 +88,14 @@ def default_project_files(
 
 
 def test_get_output_file_default() -> None:
+    """Test default output file path."""
     argv = ["python", "-m", "src"]
 
     assert get_output_file(argv) == "data/output/function_calls.json"
 
 
 def test_get_output_file_custom() -> None:
+    """Test custom output file path."""
     argv = [
         "python",
         "-m",
@@ -88,6 +108,7 @@ def test_get_output_file_custom() -> None:
 
 
 def test_get_output_file_missing_value_returns_default() -> None:
+    """Test direct output helper behavior when value is missing."""
     argv = [
         "python",
         "-m",
@@ -99,12 +120,14 @@ def test_get_output_file_missing_value_returns_default() -> None:
 
 
 def test_test_args_accepts_empty_args() -> None:
+    """Test that no optional arguments is accepted."""
     argv = ["python"]
 
     test_args(argv)
 
 
 def test_test_args_accepts_valid_args() -> None:
+    """Test that all valid arguments are accepted."""
     argv = [
         "python",
         "--functions_definition",
@@ -123,18 +146,20 @@ def test_test_args_accepts_valid_args() -> None:
 
 
 def test_test_args_rejects_unknown_argument() -> None:
+    """Test that unknown arguments are rejected."""
     argv = [
         "python",
         "--unknown",
     ]
 
-    with pytest.raises(Exception) as error:
+    with pytest.raises(ValueError) as error:
         test_args(argv)
 
-    assert "Unknown argument" in str(error.value)
+    assert "Unknown argument: --unknown" in str(error.value)
 
 
 def test_test_args_rejects_duplicate_functions_definition() -> None:
+    """Test that duplicate --functions_definition is rejected."""
     argv = [
         "python",
         "--functions_definition",
@@ -143,13 +168,16 @@ def test_test_args_rejects_duplicate_functions_definition() -> None:
         "b.json",
     ]
 
-    with pytest.raises(Exception) as error:
+    with pytest.raises(ValueError) as error:
         test_args(argv)
 
-    assert "--functions_definition param has multiple" in str(error.value)
+    assert "--functions_definition parameter is defined multiple times" in str(
+        error.value
+    )
 
 
 def test_test_args_rejects_duplicate_input() -> None:
+    """Test that duplicate --input is rejected."""
     argv = [
         "python",
         "--input",
@@ -158,13 +186,14 @@ def test_test_args_rejects_duplicate_input() -> None:
         "b.json",
     ]
 
-    with pytest.raises(Exception) as error:
+    with pytest.raises(ValueError) as error:
         test_args(argv)
 
-    assert "--input param has multiple definition" in str(error.value)
+    assert "--input parameter is defined multiple times" in str(error.value)
 
 
 def test_test_args_rejects_duplicate_output() -> None:
+    """Test that duplicate --output is rejected."""
     argv = [
         "python",
         "--output",
@@ -173,13 +202,14 @@ def test_test_args_rejects_duplicate_output() -> None:
         "b.json",
     ]
 
-    with pytest.raises(Exception) as error:
+    with pytest.raises(ValueError) as error:
         test_args(argv)
 
-    assert "--output param has multiple definition" in str(error.value)
+    assert "--output parameter is defined multiple times" in str(error.value)
 
 
 def test_test_args_rejects_duplicate_llm() -> None:
+    """Test that duplicate --llm is rejected."""
     argv = [
         "python",
         "--llm",
@@ -188,41 +218,73 @@ def test_test_args_rejects_duplicate_llm() -> None:
         "model-b",
     ]
 
-    with pytest.raises(Exception) as error:
+    with pytest.raises(ValueError) as error:
         test_args(argv)
 
-    assert "--llm param has multiple definition" in str(error.value)
+    assert "--llm parameter is defined multiple times" in str(error.value)
 
 
 def test_test_args_rejects_duplicate_details() -> None:
+    """Test that duplicate --details is rejected."""
     argv = [
         "python",
         "--details",
         "--details",
     ]
 
-    with pytest.raises(Exception) as error:
+    with pytest.raises(ValueError) as error:
         test_args(argv)
 
-    assert "--details param has multiple definition" in str(error.value)
+    assert "--details parameter is defined multiple times" in str(error.value)
 
 
 def test_test_args_rejects_duplicate_tokenizer() -> None:
+    """Test that duplicate --tokenizer is rejected."""
     argv = [
         "python",
         "--tokenizer",
         "--tokenizer",
     ]
 
-    with pytest.raises(Exception) as error:
+    with pytest.raises(ValueError) as error:
         test_args(argv)
 
-    assert "--tokenizer param has multiple definition" in str(error.value)
+    assert "--tokenizer parameter is defined multiple times" in str(
+        error.value
+    )
+
+
+def test_test_args_rejects_missing_value_for_input() -> None:
+    """Test that an option requiring a value rejects missing values."""
+    argv = [
+        "python",
+        "--input",
+    ]
+
+    with pytest.raises(ValueError) as error:
+        test_args(argv)
+
+    assert "--input requires a value" in str(error.value)
+
+
+def test_test_args_rejects_missing_value_before_next_option() -> None:
+    """Test that an option followed by another option is treated as missing."""
+    argv = [
+        "python",
+        "--input",
+        "--details",
+    ]
+
+    with pytest.raises(ValueError) as error:
+        test_args(argv)
+
+    assert "--input requires a value" in str(error.value)
 
 
 def test_get_function_definition_default_path(
     default_project_files: Path,
 ) -> None:
+    """Test loading function definitions from the default path."""
     argv = ["python"]
 
     result = get_function_definition(argv)
@@ -234,6 +296,7 @@ def test_get_function_definition_custom_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Test loading function definitions from a custom path."""
     monkeypatch.chdir(tmp_path)
 
     custom_path = tmp_path / "custom/functions.json"
@@ -254,6 +317,7 @@ def test_get_function_definition_missing_file_raises_file_not_found(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Test missing function definition file error."""
     monkeypatch.chdir(tmp_path)
 
     argv = [
@@ -270,6 +334,7 @@ def test_get_function_definition_invalid_json_raises_json_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Test invalid JSON in function definition file."""
     monkeypatch.chdir(tmp_path)
 
     invalid_path = tmp_path / "invalid.json"
@@ -286,6 +351,7 @@ def test_get_function_definition_invalid_json_raises_json_error(
 
 
 def test_get_input_default_path(default_project_files: Path) -> None:
+    """Test loading prompt input from default path."""
     argv = ["python"]
 
     result = get_input(argv)
@@ -297,6 +363,7 @@ def test_get_input_custom_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Test loading prompt input from custom path."""
     monkeypatch.chdir(tmp_path)
 
     custom_path = tmp_path / "custom/input.json"
@@ -317,6 +384,7 @@ def test_get_input_missing_file_raises_file_not_found(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Test missing input file error."""
     monkeypatch.chdir(tmp_path)
 
     argv = [
@@ -333,6 +401,7 @@ def test_get_input_invalid_json_raises_json_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Test invalid JSON in input file."""
     monkeypatch.chdir(tmp_path)
 
     invalid_path = tmp_path / "invalid_input.json"
@@ -349,16 +418,14 @@ def test_get_input_invalid_json_raises_json_error(
 
 
 def test_get_llm_default() -> None:
+    """Test default LLM model name."""
     argv = ["python"]
 
     assert get_llm(argv) == "Qwen/Qwen3-0.6B"
 
 
-@pytest.mark.xfail(
-    reason="Current get_llm() implementation searches "
-    "for '--input' instead of '--llm'."
-)
 def test_get_llm_custom() -> None:
+    """Test custom LLM model name."""
     argv = [
         "python",
         "--llm",
@@ -369,6 +436,7 @@ def test_get_llm_custom() -> None:
 
 
 def test_parsing_with_default_files(default_project_files: Path) -> None:
+    """Test full parsing with default input files."""
     argv = ["python"]
 
     config = parsing(argv)
@@ -386,6 +454,7 @@ def test_parsing_with_custom_files_and_flags(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Test full parsing with custom files and boolean flags."""
     monkeypatch.chdir(tmp_path)
 
     functions_path = tmp_path / "custom/functions.json"
@@ -418,22 +487,52 @@ def test_parsing_with_custom_files_and_flags(
     assert config.llm == "Qwen/Qwen3-0.6B"
 
 
+def test_parsing_with_custom_llm(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test full parsing with a custom LLM argument."""
+    monkeypatch.chdir(tmp_path)
+
+    write_json(
+        tmp_path / "data/input/functions_definition.json",
+        valid_function_definition(),
+    )
+    write_json(
+        tmp_path / "data/input/function_calling_tests.json",
+        valid_input(),
+    )
+
+    argv = [
+        "python",
+        "--llm",
+        "custom/model",
+    ]
+
+    config = parsing(argv)
+
+    assert isinstance(config, Config)
+    assert config.llm == "custom/model"
+
+
 def test_parsing_rejects_unknown_argument(default_project_files: Path) -> None:
+    """Test parsing rejects unknown arguments."""
     argv = [
         "python",
         "--bad-argument",
     ]
 
-    with pytest.raises(Exception) as error:
+    with pytest.raises(ValueError) as error:
         parsing(argv)
 
-    assert "Unknown argument" in str(error.value)
+    assert "Unknown argument: --bad-argument" in str(error.value)
 
 
 def test_parsing_rejects_invalid_function_definition_format(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Test parsing rejects invalid function definition schema."""
     monkeypatch.chdir(tmp_path)
 
     invalid_function_definition = [
@@ -461,13 +560,14 @@ def test_parsing_rejects_invalid_function_definition_format(
     with pytest.raises(Exception) as error:
         parsing(argv)
 
-    assert "invalid function_definition format" in str(error.value)
+    assert "parameter type must be a string" in str(error.value)
 
 
 def test_parsing_rejects_invalid_input_format(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Test parsing rejects invalid prompt input schema."""
     monkeypatch.chdir(tmp_path)
 
     invalid_input = [
@@ -490,4 +590,4 @@ def test_parsing_rejects_invalid_input_format(
     with pytest.raises(Exception) as error:
         parsing(argv)
 
-    assert "invalid input format" in str(error.value)
+    assert "each input item must contain a prompt string" in str(error.value)

@@ -6,91 +6,114 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class Config(BaseModel):
-    """Runtime configuration for the function-calling program.
+    """Application configuration validated with pydantic.
 
-    The class stores validated input data, output options, and model settings.
-    Validation is performed at runtime with pydantic because data comes from
-    JSON files and command-line arguments.
+    The configuration contains all data needed to run the function-calling
+    pipeline: function definitions, input prompts, output path, display flags,
+    tokenizer choice, and LLM model name.
     """
 
-    function_definition: Any = Field(default_factory=list)
-    input: Any = Field(default_factory=list)
-    output_file: str = "data/output/function_calls.json"
-    details: bool = False
-    tokenizer: bool = False
+    function_definition: Any
+    input: Any
+    output_file: str
+    details: bool
+    tokenizer: bool
     llm: str = Field(default="Qwen/Qwen3-0.6B")
 
     @field_validator("function_definition")
     @classmethod
     def validate_function_def(cls, value: Any) -> list[dict[str, Any]]:
-        """Validate the function definition JSON structure.
+        """Validate the function definition structure.
+
+        A valid function definition must be a list of dictionaries. Each
+        dictionary must contain:
+
+        - name: string
+        - description: string
+        - parameters: dictionary
+        - returns: dictionary
+
+        Each parameter must also contain a string `type` field.
 
         Args:
-            value: Raw function definition data loaded from JSON.
+            value: Raw function definition data.
 
         Returns:
-            The validated list of function definitions.
+            The validated function definition list.
 
         Raises:
             ValueError: If the function definition format is invalid.
         """
         if not isinstance(value, list):
-            raise ValueError("function_definition must be a list")
+            raise ValueError("invalid function_definition format")
 
-        for fn in value:
-            if not isinstance(fn, dict):
-                raise ValueError("each function definition must be an object")
+        for function_definition in value:
+            if not isinstance(function_definition, dict):
+                raise ValueError("invalid function_definition format")
 
-            name = fn.get("name")
-            description = fn.get("description")
-            parameters = fn.get("parameters")
-            returns = fn.get("returns")
+            name = function_definition.get("name")
+            description = function_definition.get("description")
+            parameters = function_definition.get("parameters")
+            returns = function_definition.get("returns")
 
             if not isinstance(name, str):
-                raise ValueError("function name must be a string")
+                raise ValueError("invalid function_definition format")
+
             if not isinstance(description, str):
-                raise ValueError("function description must be a string")
+                raise ValueError("invalid function_definition format")
+
             if not isinstance(parameters, dict):
-                raise ValueError("function parameters must be an object")
+                raise ValueError("invalid function_definition format")
+
             if not isinstance(returns, dict):
-                raise ValueError("function returns must be an object")
+                raise ValueError("invalid function_definition format")
 
-            for param_name, param_def in parameters.items():
-                if not isinstance(param_name, str):
-                    raise ValueError("parameter names must be strings")
-                if not isinstance(param_def, dict):
-                    raise ValueError("parameter definition must be an object")
-                if not isinstance(param_def.get("type"), str):
-                    raise ValueError("parameter type must be a string")
+            for parameter_name, parameter_definition in parameters.items():
+                if not isinstance(parameter_name, str):
+                    raise ValueError("invalid function_definition format")
 
-            if not isinstance(returns.get("type"), str):
-                raise ValueError("return type must be a string")
+                if not isinstance(parameter_definition, dict):
+                    raise ValueError("invalid function_definition format")
+
+                parameter_type = parameter_definition.get("type")
+
+                if not isinstance(parameter_type, str):
+                    raise ValueError("invalid function_definition format")
+
+            return_type = returns.get("type")
+
+            if not isinstance(return_type, str):
+                raise ValueError("invalid function_definition format")
 
         return value
 
     @field_validator("input")
     @classmethod
     def validate_input(cls, value: Any) -> list[dict[str, str]]:
-        """Validate the prompt input JSON structure.
+        """Validate the input prompt structure.
+
+        A valid input must be a list of dictionaries. Each dictionary must
+        contain a string field named `prompt`.
 
         Args:
-            value: Raw prompt data loaded from JSON.
+            value: Raw input data.
 
         Returns:
-            The validated list of prompt dictionaries.
+            The validated input list.
 
         Raises:
             ValueError: If the input format is invalid.
         """
         if not isinstance(value, list):
-            raise ValueError("input must be a list")
+            raise ValueError("invalid input format")
 
-        for prompt in value:
-            if not isinstance(prompt, dict):
-                raise ValueError("each input item must be an object")
-            if not isinstance(prompt.get("prompt"), str):
-                raise ValueError(
-                    "each input item must contain a prompt string"
-                )
+        for prompt_data in value:
+            if not isinstance(prompt_data, dict):
+                raise ValueError("invalid input format")
+
+            prompt = prompt_data.get("prompt")
+
+            if not isinstance(prompt, str):
+                raise ValueError("invalid input format")
 
         return value

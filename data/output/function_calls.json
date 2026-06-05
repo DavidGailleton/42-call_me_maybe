@@ -42,7 +42,7 @@
         "prompt": "Execute SQL query 'SELECT * FROM users' on the production database",
         "name": "fn_execute_sql_query",
         "parameters": {
-            "query": "SELECT * FROM users",
+            "query": "SELECT * FROM ustoers",
             "database": "production"
         }
     },
@@ -58,7 +58,7 @@
         "prompt": "Read the file at /home/user/data.json with utf-8 encoding",
         "name": "fn_read_file",
         "parameters": {
-            "path": "/home/user/data.json",
+            "path": "/home/username/data.json",
             "encoding": "utf-8"
         }
     },
@@ -70,14 +70,11 @@
         "prompt": "Format template: Hello {user}'s profile!",
         "name": "fn_format_template",
         "parameters": {
-            "template": "Hello {user}'s profile!"
+            "template": "Hello {user}'s pprofile!"
         }
     },
     {
         "prompt": "Format template: Say \"hello\" to {name}",
-        "name": "fn_format_template",
-        "parameters": {
-            "template": "string"
-        }
+        "name": "error"
     }
 ]
