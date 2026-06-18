@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pathlib import Path
 
 import json
 from typing import Any, cast
@@ -34,9 +35,10 @@ def get_output_file(argv: list[str]) -> str:
     Returns:
         Output file path.
     """
-    output = _get_option_value(argv, "--output")
+    output: str | None = _get_option_value(argv, "--output")
     if output is None:
-        return "data/output/function_calls.json"
+        output = "data/output/function_calls.json"
+    Path(output).parent.mkdir(parents=True, exist_ok=True)
     return output
 
 
