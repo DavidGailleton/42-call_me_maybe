@@ -120,7 +120,12 @@ def get_function_definition(argv: list[str]) -> list[FunctionDefinition]:
     if file_name is None:
         file_name = "data/input/functions_definition.json"
 
-    content = _load_json_file(file_name)
+    try:
+        content = _load_json_file(file_name)
+    except FileNotFoundError:
+        raise Exception("Function definition file not found")
+    except json.JSONDecodeError:
+        raise Exception("Invalid function definition file format")
 
     if not isinstance(content, list):
         raise ValueError("functions_definition file must contain a JSON array")
@@ -141,7 +146,12 @@ def get_input(argv: list[str]) -> list[PromptInput]:
     if file_name is None:
         file_name = "data/input/function_calling_tests.json"
 
-    content = _load_json_file(file_name)
+    try:
+        content = _load_json_file(file_name)
+    except FileNotFoundError:
+        raise Exception("Input file not found")
+    except json.JSONDecodeError:
+        raise Exception("Invalid input file format")
 
     if not isinstance(content, list):
         raise ValueError("input file must contain a JSON array")
